@@ -1,0 +1,309 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Dashboard - Chai Huah Auto Parts & Service</title>
+
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+  <link rel="stylesheet" href="css/dashboard.css">
+  <link rel="stylesheet" href="css/theme.css">
+</head>
+
+<body>
+
+<div class="app-layout">
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-brand">
+      <div class="brand-icon">
+        <i class="bi bi-car-front-fill"></i>
+      </div>
+      <div>
+        <h5 class="brand-title mb-0">Chai Huah</h5>
+        <small class="brand-subtitle">Auto Parts & Service</small>
+      </div>
+    </div>
+
+    <nav class="sidebar-nav">
+      <div class="nav-section">
+        <div class="nav-section-title">Main</div>
+      <a href="home.html" class="nav-link">
+        <i class="bi bi-house-door-fill"></i>
+        <span>Home</span>
+      </a>
+      <a href="dashboard.html" class="nav-link active">
+        <i class="bi bi-speedometer2"></i>
+        <span>Dashboard</span>
+      </a>
+      </div>
+
+      <div class="nav-section">
+        <div class="nav-section-title">Customer & Service</div>
+      <a href="customers.html" class="nav-link">
+        <i class="bi bi-people-fill"></i>
+        <span>Customers</span>
+      </a>
+      <a href="vehicles.html" class="nav-link">
+        <i class="bi bi-car-front"></i>
+        <span>Vehicles & Services</span>
+      </a>
+      <a href="enquiries.html" class="nav-link">
+        <i class="bi bi-chat-left-text-fill"></i>
+        <span>Customer Enquiries</span>
+      </a>
+      <a href="reminders.html" class="nav-link">
+        <i class="bi bi-bell-fill"></i>
+        <span>Service Reminders</span>
+      </a>
+      </div>
+
+      <div class="nav-section">
+        <div class="nav-section-title">Operations</div>
+      <a href="inventory.html" class="nav-link">
+        <i class="bi bi-box-seam"></i>
+        <span>Inventory Usage</span>
+      </a>
+      </div>
+    </nav>
+
+    <div class="sidebar-footer">
+      <div class="nav-section-title">Account</div>
+      <a href="login.html" class="nav-link logout-link">
+        <i class="bi bi-box-arrow-right"></i>
+        <span>Logout</span>
+      </a>
+    </div>
+  </aside>
+
+  <div class="main-wrapper">
+    <header class="topbar">
+      <div class="d-flex align-items-center gap-3">
+        <button class="btn btn-outline-warning d-lg-none" id="menuToggle">
+          <i class="bi bi-list"></i>
+        </button>
+        <div>
+          <h4 class="mb-0">Dashboard</h4>
+          <small class="text-secondary-custom">Welcome back! Here's what's happening today.</small>
+        </div>
+      </div>
+
+      <div class="topbar-right">
+        <span class="user-badge">Admin</span>
+      </div>
+    </header>
+
+    <main class="content-area">
+      <div class="container-fluid">
+
+        <!-- Stats -->
+        <div class="row g-4 mb-4">
+          <div class="col-sm-6 col-xl-3">
+            <div class="stat-card">
+              <div class="stat-top">
+                <div class="stat-icon-box">
+                  <i class="bi bi-people-fill"></i>
+                </div>
+                <div class="trend up">
+                  <i class="bi bi-graph-up-arrow"></i>
+                  <span>+12%</span>
+                </div>
+              </div>
+              <p class="stat-label">Total Customers</p>
+              <h2 class="stat-value">248</h2>
+            </div>
+          </div>
+
+          <div class="col-sm-6 col-xl-3">
+            <div class="stat-card">
+              <div class="stat-top">
+                <div class="stat-icon-box">
+                  <i class="bi bi-tools"></i>
+                </div>
+                <div class="trend up">
+                  <i class="bi bi-graph-up-arrow"></i>
+                  <span>+8%</span>
+                </div>
+              </div>
+              <p class="stat-label">Total Services</p>
+              <h2 class="stat-value">1,847</h2>
+            </div>
+          </div>
+
+          <div class="col-sm-6 col-xl-3">
+            <div class="stat-card">
+              <div class="stat-top">
+                <div class="stat-icon-box">
+                  <i class="bi bi-box-seam"></i>
+                </div>
+                <div class="trend down">
+                  <i class="bi bi-graph-down-arrow"></i>
+                  <span>-3%</span>
+                </div>
+              </div>
+              <p class="stat-label">Parts Used Today</p>
+              <h2 class="stat-value">34</h2>
+            </div>
+          </div>
+
+          <div class="col-sm-6 col-xl-3">
+            <div class="stat-card">
+              <div class="stat-top">
+                <div class="stat-icon-box">
+                  <i class="bi bi-calendar-event-fill"></i>
+                </div>
+                <div class="trend up">
+                  <i class="bi bi-graph-up-arrow"></i>
+                  <span>+5</span>
+                </div>
+              </div>
+              <p class="stat-label">Upcoming Reminders</p>
+              <h2 class="stat-value">18</h2>
+            </div>
+          </div>
+        </div>
+
+        <!-- Bottom Grid -->
+        <div class="row g-4">
+          <div class="col-lg-6">
+            <div class="content-card h-100">
+              <div class="section-title">
+                <i class="bi bi-exclamation-triangle-fill text-warning"></i>
+                <h5 class="mb-0">Parts Usage Checks</h5>
+              </div>
+
+              <div class="item-list">
+                <div class="alert-item">
+                  <div>
+                    <p class="item-title">Engine Oil 5W-30</p>
+                    <p class="item-subtitle">Used today: 5 units</p>
+                  </div>
+                  <div class="text-end">
+                    <p class="stock-value stock-critical">Pending</p>
+                    <span class="status-badge status-critical">check</span>
+                  </div>
+                </div>
+
+                <div class="alert-item">
+                  <div>
+                    <p class="item-title">Brake Pads (Front)</p>
+                    <p class="item-subtitle">Used today: 2 units</p>
+                  </div>
+                  <div class="text-end">
+                    <p class="stock-value stock-low">Checked</p>
+                    <span class="status-badge status-low">not ordered</span>
+                  </div>
+                </div>
+
+                <div class="alert-item">
+                  <div>
+                    <p class="item-title">Air Filter</p>
+                    <p class="item-subtitle">Used today: 3 units</p>
+                  </div>
+                  <div class="text-end">
+                    <p class="stock-value stock-low">Checked</p>
+                    <span class="status-badge status-low">ordered</span>
+                  </div>
+                </div>
+
+                <div class="alert-item">
+                  <div>
+                    <p class="item-title">Spark Plugs</p>
+                    <p class="item-subtitle">Used today: 4 units</p>
+                  </div>
+                  <div class="text-end">
+                    <p class="stock-value stock-low">Pending</p>
+                    <span class="status-badge status-low">check</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="col-lg-6">
+            <div class="content-card h-100">
+              <div class="section-title">
+                <i class="bi bi-clock-history text-warning"></i>
+                <h5 class="mb-0">Recent Service Activities</h5>
+              </div>
+
+              <div class="item-list">
+                <div class="activity-item">
+                  <div class="flex-grow-1">
+                    <p class="item-title">Ahmad bin Hassan</p>
+                    <p class="item-subtitle">Oil Change</p>
+                    <p class="item-time">2026-04-03 at 09:30 AM</p>
+                  </div>
+                  <span class="status-pill completed">completed</span>
+                </div>
+
+                <div class="activity-item">
+                  <div class="flex-grow-1">
+                    <p class="item-title">Lim Wei Jie</p>
+                    <p class="item-subtitle">Brake Service</p>
+                    <p class="item-time">2026-04-03 at 11:00 AM</p>
+                  </div>
+                  <span class="status-pill progress">in-progress</span>
+                </div>
+
+                <div class="activity-item">
+                  <div class="flex-grow-1">
+                    <p class="item-title">Siti Nurhaliza</p>
+                    <p class="item-subtitle">General Inspection</p>
+                    <p class="item-time">2026-04-03 at 02:00 PM</p>
+                  </div>
+                  <span class="status-pill scheduled">scheduled</span>
+                </div>
+
+                <div class="activity-item">
+                  <div class="flex-grow-1">
+                    <p class="item-title">Raj Kumar</p>
+                    <p class="item-subtitle">Engine Repair</p>
+                    <p class="item-time">2026-04-02 at 03:45 PM</p>
+                  </div>
+                  <span class="status-pill completed">completed</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </main>
+  </div>
+</div>
+
+<div class="sidebar-overlay" id="sidebarOverlay"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+
+<script>
+  const menuToggle = document.getElementById("menuToggle");
+  const sidebar = document.getElementById("sidebar");
+  const sidebarOverlay = document.getElementById("sidebarOverlay");
+
+  menuToggle.addEventListener("click", function () {
+    sidebar.classList.toggle("show");
+    sidebarOverlay.classList.toggle("show");
+  });
+
+  sidebarOverlay.addEventListener("click", function () {
+    sidebar.classList.remove("show");
+    sidebarOverlay.classList.remove("show");
+  });
+</script>
+
+<script src="js/auth.js"></script>
+<script>
+  requireAuth();
+
+  const logoutLink = document.querySelector(".logout-link");
+  if (logoutLink) {
+    logoutLink.addEventListener("click", function (e) {
+      e.preventDefault();
+      logoutUser();
+    });
+  }
+</script>
+</body>
+</html>

@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Vehicles & Services - Chai Huah Auto Parts & Service</title>
+
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+  <link rel="stylesheet" href="css/vehicles.css">
+  <link rel="stylesheet" href="css/theme.css">
+</head>
+
+<body>
+
+<div class="app-layout">
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-brand">
+      <div class="brand-icon">
+        <i class="bi bi-car-front-fill"></i>
+      </div>
+      <div>
+        <h5 class="brand-title mb-0">Chai Huah</h5>
+        <small class="brand-subtitle">Auto Parts & Service</small>
+      </div>
+    </div>
+
+    <nav class="sidebar-nav">
+      <div class="nav-section">
+        <div class="nav-section-title">Main</div>
+        <a href="home.html" class="nav-link">
+          <i class="bi bi-house-door-fill"></i>
+          <span>Home</span>
+        </a>
+        <a href="dashboard.html" class="nav-link">
+          <i class="bi bi-speedometer2"></i>
+          <span>Dashboard</span>
+        </a>
+      </div>
+
+      <div class="nav-section">
+        <div class="nav-section-title">Customer & Service</div>
+        <a href="customers.html" class="nav-link">
+          <i class="bi bi-people-fill"></i>
+          <span>Customers</span>
+        </a>
+        <a href="vehicles.html" class="nav-link active">
+          <i class="bi bi-car-front"></i>
+          <span>Vehicles & Services</span>
+        </a>
+        <a href="enquiries.html" class="nav-link">
+          <i class="bi bi-chat-left-text-fill"></i>
+          <span>Customer Enquiries</span>
+        </a>
+        <a href="reminders.html" class="nav-link">
+          <i class="bi bi-bell-fill"></i>
+          <span>Service Reminders</span>
+        </a>
+      </div>
+
+      <div class="nav-section">
+        <div class="nav-section-title">Operations</div>
+        <a href="inventory.html" class="nav-link">
+          <i class="bi bi-box-seam"></i>
+          <span>Inventory Usage</span>
+        </a>
+      </div>
+    </nav>
+
+    <div class="sidebar-footer">
+      <div class="nav-section-title">Account</div>
+      <a href="login.html" class="nav-link logout-link">
+        <i class="bi bi-box-arrow-right"></i>
+        <span>Logout</span>
+      </a>
+    </div>
+  </aside>
+
+  <div class="main-wrapper">
+    <header class="topbar">
+      <div class="d-flex align-items-center gap-3">
+        <button class="btn btn-outline-warning d-lg-none" id="menuToggle">
+          <i class="bi bi-list"></i>
+        </button>
+        <div>
+          <h4 class="mb-0">Engine Oil Service History</h4>
+          <small class="text-secondary-custom">Manage oil service records and next service dates</small>
+        </div>
+      </div>
+
+      <div class="topbar-right">
+        <span class="user-badge">Admin</span>
+      </div>
+    </header>
+
+    <main class="content-area">
+      <div class="container-fluid">
+        <div class="page-header-row">
+          <div>
+            <h2 class="page-title">Vehicles & Services</h2>
+            <p class="page-subtitle">Track engine oil service history, mileage, and date-based reminders</p>
+          </div>
+          <button class="btn btn-warning add-btn" data-bs-toggle="modal" data-bs-target="#serviceRecordModal">
+            <i class="bi bi-plus-lg"></i>
+            Add Service Record
+          </button>
+        </div>
+
+        <div class="search-card">
+          <div class="row g-3 align-items-center">
+            <div class="col-lg-7">
+              <div class="search-input-wrapper">
+                <i class="bi bi-search search-icon"></i>
+                <input type="text" id="vehicleSearchInput" class="form-control search-input" placeholder="Search by plate number, customer name, vehicle model, or package...">
+              </div>
+            </div>
+            <div class="col-lg-5">
+              <div class="insight-grid">
+                <div class="insight-box">
+                  <span class="insight-label">Tracked Vehicles</span>
+                  <span class="insight-value" id="trackedVehiclesCount">0</span>
+                </div>
+                <div class="insight-box">
+                  <span class="insight-label">Due Soon / Overdue</span>
+                  <span class="insight-value" id="dueVehiclesCount">0</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="row g-4" id="vehicleCardsContainer"></div>
+      </div>
+    </main>
+  </div>
+</div>
+
+<div class="modal fade" id="serviceRecordModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered modal-lg">
+    <div class="modal-content vehicle-modal">
+      <div class="modal-header modal-header-custom">
+        <div>
+          <h4 class="mb-1" id="serviceModalTitle">Add Service Record</h4>
+          <p class="text-secondary-custom mb-0">Record engine oil service information and calculate reminder dates</p>
+        </div>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <form id="serviceRecordForm">
+          <input type="hidden" id="serviceRecordId">
+
+          <div class="form-section">
+            <h6 class="section-heading">Vehicle Information</h6>
+            <div class="row g-3">
+              <div class="col-md-6">
+                <label for="serviceDate" class="form-label modal-label">Service Date</label>
+                <input type="date" class="form-control modal-input" id="serviceDate" required>
+              </div>
+              <div class="col-md-6">
+                <label for="customerName" class="form-label modal-label">Customer Name</label>
+                <div class="customer-combobox" id="customerNameCombobox">
+                  <input type="text" class="form-control modal-input customer-search-input" id="customerName" placeholder="Search or select customer" autocomplete="off" required role="combobox" aria-expanded="false" aria-controls="customerNameOptions">
+                  <button type="button" class="customer-dropdown-btn" id="customerNameToggle" aria-label="Show customers">
+                    <i class="bi bi-chevron-down"></i>
+                  </button>
+                  <div class="customer-options d-none" id="customerNameOptions" role="listbox"></div>
+                </div>
+              </div>
+              <div class="col-md-6">
+                <label for="vehiclePlateNumber" class="form-label modal-label">Car Plate</label>
+                <select class="form-select modal-input" id="vehiclePlateNumber" required>
+                  <option value="">Select car plate</option>
+                </select>
+              </div>
+              <div class="col-md-6">
+                <label for="phoneNumber" class="form-label modal-label">Phone Number</label>
+                <input type="text" class="form-control modal-input" id="phoneNumber" readonly required>
+              </div>
+              <div class="col-md-6">
+                <label for="vehicleBrand" class="form-label modal-label">Vehicle Brand</label>
+                <input type="text" class="form-control modal-input" id="vehicleBrand" readonly required>
+              </div>
+              <div class="col-md-6">
+                <label for="vehicleModel" class="form-label modal-label">Vehicle Model</label>
+                <input type="text" class="form-control modal-input" id="vehicleModel" readonly required>
+              </div>
+              <div class="col-md-6">
+                <label for="currentMileage" class="form-label modal-label">Current Mileage (km)</label>
+                <input type="number" class="form-control modal-input" id="currentMileage" min="0" step="1" required>
+              </div>
+            </div>
+          </div>
+
+          <div class="form-section">
+            <h6 class="section-heading">Oil Service Details</h6>
+            <div class="row g-3">
+              <div class="col-md-6">
+                <label for="oilServicePackage" class="form-label modal-label">Oil Service Package</label>
+                <div class="package-combobox" id="oilServicePackageCombobox">
+                  <input type="text" class="form-control modal-input package-search-input" id="oilServicePackage" value="5000km (3 months)" autocomplete="off" readonly required role="combobox" aria-expanded="false" aria-controls="oilServicePackageOptions">
+                  <button type="button" class="package-dropdown-btn" id="oilServicePackageToggle" aria-label="Show oil service packages">
+                    <i class="bi bi-chevron-down"></i>
+                  </button>
+                  <div class="package-options d-none" id="oilServicePackageOptions" role="listbox"></div>
+                </div>
+              </div>
+              <div class="col-md-6">
+                <label for="engineOilType" class="form-label modal-label">Engine Oil Type</label>
+                <input type="text" class="form-control modal-input" id="engineOilType" placeholder="Optional">
+              </div>
+              <div class="col-12">
+                <label for="partsUsed" class="form-label modal-label">Parts Used</label>
+                <textarea class="form-control modal-input" id="partsUsed" rows="3" placeholder="Optional"></textarea>
+              </div>
+            </div>
+          </div>
+
+          <div class="form-section">
+            <h6 class="section-heading">Auto-calculated Fields</h6>
+            <div class="row g-3">
+              <div class="col-md-4">
+                <label for="nextOilServiceDueDate" class="form-label modal-label">Next Oil Service Due Date</label>
+                <input type="date" class="form-control modal-input" id="nextOilServiceDueDate" readonly>
+              </div>
+              <div class="col-md-4">
+                <label for="reminderDate" class="form-label modal-label">Reminder Date</label>
+                <input type="date" class="form-control modal-input" id="reminderDate" readonly>
+              </div>
+              <div class="col-md-4">
+                <label for="reminderStatus" class="form-label modal-label">Reminder Status</label>
+                <input type="text" class="form-control modal-input" id="reminderStatus" readonly>
+              </div>
+            </div>
+          </div>
+
+          <div class="d-flex justify-content-end gap-2 pt-2">
+            <button type="button" class="btn btn-outline-light" data-bs-dismiss="modal">Cancel</button>
+            <button type="submit" class="btn btn-warning" id="serviceSubmitBtn">Add Service Record</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="modal fade" id="vehicleHistoryModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered modal-xl">
+    <div class="modal-content vehicle-modal">
+      <div class="modal-header modal-header-custom">
+        <div>
+          <h4 class="mb-1" id="historyVehicleTitle">Vehicle History</h4>
+          <p class="text-secondary-custom mb-0" id="historyVehicleSubtitle"></p>
+        </div>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <div class="detail-grid detail-grid-wide mb-4" id="historySummaryGrid"></div>
+        <div class="history-list" id="vehicleHistoryList"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="sidebar-overlay" id="sidebarOverlay"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script src="js/oil-service-utils.js"></script>
+<script src="js/vehicles.js"></script>
+
+<script src="js/auth.js"></script>
+<script>
+  requireAuth();
+
+  const logoutLink = document.querySelector(".logout-link");
+  if (logoutLink) {
+    logoutLink.addEventListener("click", function (e) {
+      e.preventDefault();
+      logoutUser();
+    });
+  }
+</script>
+</body>
+</html>

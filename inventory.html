@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Daily Parts Usage Log - Chai Huah Auto Parts & Service</title>
+
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+  <link rel="stylesheet" href="css/inventory.css">
+  <link rel="stylesheet" href="css/theme.css">
+</head>
+
+<body>
+
+<div class="app-layout">
+  <!-- Sidebar -->
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-brand">
+      <div class="brand-icon">
+        <i class="bi bi-car-front-fill"></i>
+      </div>
+      <div>
+        <h5 class="brand-title mb-0">Chai Huah</h5>
+        <small class="brand-subtitle">Auto Parts & Service</small>
+      </div>
+    </div>
+
+    <nav class="sidebar-nav">
+      <div class="nav-section">
+        <div class="nav-section-title">Main</div>
+      <a href="home.html" class="nav-link">
+        <i class="bi bi-house-door-fill"></i>
+        <span>Home</span>
+      </a>
+      <a href="dashboard.html" class="nav-link">
+        <i class="bi bi-speedometer2"></i>
+        <span>Dashboard</span>
+      </a>
+      </div>
+
+      <div class="nav-section">
+        <div class="nav-section-title">Customer & Service</div>
+      <a href="customers.html" class="nav-link">
+        <i class="bi bi-people-fill"></i>
+        <span>Customers</span>
+      </a>
+      <a href="vehicles.html" class="nav-link">
+        <i class="bi bi-car-front"></i>
+        <span>Vehicles & Services</span>
+      </a>
+      <a href="enquiries.html" class="nav-link">
+        <i class="bi bi-chat-left-text-fill"></i>
+        <span>Customer Enquiries</span>
+      </a>
+      <a href="reminders.html" class="nav-link">
+        <i class="bi bi-bell-fill"></i>
+        <span>Service Reminders</span>
+      </a>
+      </div>
+
+      <div class="nav-section">
+        <div class="nav-section-title">Operations</div>
+      <a href="inventory.html" class="nav-link active">
+        <i class="bi bi-box-seam"></i>
+        <span>Inventory Usage</span>
+      </a>
+      </div>
+    </nav>
+
+    <div class="sidebar-footer">
+      <div class="nav-section-title">Account</div>
+      <a href="login.html" class="nav-link logout-link">
+        <i class="bi bi-box-arrow-right"></i>
+        <span>Logout</span>
+      </a>
+    </div>
+  </aside>
+
+  <!-- Main -->
+  <div class="main-wrapper">
+    <header class="topbar">
+      <div class="d-flex align-items-center gap-3">
+        <button class="btn btn-outline-warning d-lg-none" id="menuToggle">
+          <i class="bi bi-list"></i>
+        </button>
+        <div>
+          <h4 class="mb-0">Daily Parts Usage Log</h4>
+          <small class="text-secondary-custom">Record parts used during service operations</small>
+        </div>
+      </div>
+
+      <div class="topbar-right">
+        <span class="user-badge">Admin</span>
+      </div>
+    </header>
+
+    <main class="content-area">
+      <div class="container-fluid">
+
+        <!-- Header -->
+        <div class="page-header-row">
+          <div>
+            <h2 class="page-title">Daily Parts Usage Log</h2>
+            <p class="page-subtitle">Support manual stock checking based on daily usage records</p>
+          </div>
+          <button class="btn btn-warning add-btn" data-bs-toggle="modal" data-bs-target="#usageModal">
+            <i class="bi bi-plus-lg"></i>
+            Record Usage
+          </button>
+        </div>
+
+        <!-- Search + Filter -->
+        <div class="search-card">
+          <div class="row g-3 align-items-center">
+            <div class="col-md-6">
+              <div class="search-input-wrapper">
+                <i class="bi bi-search search-icon"></i>
+                <input type="text" id="usageSearchInput" class="form-control search-input" placeholder="Search by date, part code, part name, or status...">
+              </div>
+            </div>
+
+            <div class="col-md-6 text-md-end">
+              <div class="filter-group">
+                <button class="btn filter-btn active" data-status="All">All</button>
+                <button class="btn filter-btn" data-status="Pending Check">Pending Check</button>
+                <button class="btn filter-btn" data-status="Checked, Ordered">Ordered</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Table -->
+        <div class="table-card">
+          <div class="table-responsive">
+            <table class="table inventory-table align-middle mb-0">
+              <thead>
+                <tr>
+                  <th>Date</th>
+                  <th>Part Code</th>
+                  <th>Part Name</th>
+                  <th>Qty Used</th>
+                  <th>Status</th>
+                  <th class="text-center">Actions</th>
+                </tr>
+              </thead>
+              <tbody id="usageTableBody">
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+      </div>
+    </main>
+  </div>
+</div>
+
+<div class="modal fade" id="usageModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content usage-modal">
+      <div class="modal-header modal-header-custom">
+        <div>
+          <h4 class="mb-1" id="usageModalTitle">Record Parts Usage</h4>
+          <p class="text-secondary-custom mb-0">Add the parts used for a service job</p>
+        </div>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+
+      <div class="modal-body">
+        <form id="usageForm">
+          <input type="hidden" id="usageRecordId">
+
+          <div class="mb-3">
+            <label for="usageDate" class="form-label modal-label">Date</label>
+            <input type="date" class="form-control modal-input" id="usageDate" required>
+          </div>
+
+          <div class="mb-3">
+            <label for="partCode" class="form-label modal-label">Part Code</label>
+            <input type="text" class="form-control modal-input" id="partCode" placeholder="e.g. EO-5W30" required>
+          </div>
+
+          <div class="mb-3">
+            <label for="partName" class="form-label modal-label">Part Name</label>
+            <input type="text" class="form-control modal-input" id="partName" placeholder="e.g. Engine Oil 5W-30" required>
+          </div>
+
+          <div class="mb-3">
+            <label for="qtyUsed" class="form-label modal-label">Qty Used</label>
+            <input type="number" class="form-control modal-input" id="qtyUsed" min="1" step="1" required>
+          </div>
+
+          <div class="mb-4">
+            <label for="usageStatus" class="form-label modal-label">Status</label>
+            <div class="status-combobox" id="usageStatusCombobox">
+              <input type="text" class="form-control modal-input status-select-input" id="usageStatus" value="Pending Check" autocomplete="off" readonly required role="combobox" aria-expanded="false" aria-controls="usageStatusOptions">
+              <button type="button" class="status-dropdown-btn" id="usageStatusToggle" aria-label="Show usage statuses">
+                <i class="bi bi-chevron-down"></i>
+              </button>
+              <div class="status-options d-none" id="usageStatusOptions" role="listbox"></div>
+            </div>
+          </div>
+
+          <div class="d-flex justify-content-end gap-2">
+            <button type="button" class="btn btn-outline-light" data-bs-dismiss="modal">Cancel</button>
+            <button type="submit" class="btn btn-warning" id="usageSubmitBtn">Record Usage</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="sidebar-overlay" id="sidebarOverlay"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script src="js/inventory.js"></script>
+
+<script src="js/auth.js"></script>
+<script>
+  requireAuth();
+
+  const logoutLink = document.querySelector(".logout-link");
+  if (logoutLink) {
+    logoutLink.addEventListener("click", function (e) {
+      e.preventDefault();
+      logoutUser();
+    });
+  }
+</script>
+</body>
+</html>
