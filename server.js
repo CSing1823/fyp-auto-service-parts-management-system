@@ -2,8 +2,48 @@ const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
 const crypto = require('crypto');
+const fs = require('fs');
+const path = require('path');
 const tls = require('tls');
 const { ObjectId } = require("mongodb");
+
+function loadEnvFile(filePath = path.join(__dirname, ".env")) {
+  if (!fs.existsSync(filePath)) {
+    return;
+  }
+
+  const lines = fs.readFileSync(filePath, "utf8").split(/\r?\n/);
+
+  for (const line of lines) {
+    const trimmedLine = line.trim();
+
+    if (!trimmedLine || trimmedLine.startsWith("#")) {
+      continue;
+    }
+
+    const separatorIndex = trimmedLine.indexOf("=");
+
+    if (separatorIndex === -1) {
+      continue;
+    }
+
+    const key = trimmedLine.slice(0, separatorIndex).trim();
+    let value = trimmedLine.slice(separatorIndex + 1).trim();
+
+    if (
+      (value.startsWith('"') && value.endsWith('"')) ||
+      (value.startsWith("'") && value.endsWith("'"))
+    ) {
+      value = value.slice(1, -1);
+    }
+
+    if (key && process.env[key] === undefined) {
+      process.env[key] = value;
+    }
+  }
+}
+
+loadEnvFile();
 
 const app = express();
 const usageStatuses = [
