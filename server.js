@@ -5,6 +5,7 @@ const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
 const tls = require('tls');
+const https = require('https');
 const { ObjectId } = require("mongodb");
 
 function loadEnvFile(filePath = path.join(__dirname, ".env")) {
@@ -95,7 +96,7 @@ const customersCollectionName = 'Customers';
 const vehiclesServicesCollectionName = 'Vehicles&Services';
 const inventoryUsageCollectionName = 'InventoryUsage';
 const passwordHashPrefix = "scrypt";
-const resetOtpExpiryMs = 60 * 1000;
+const resetOtpExpiryMs = 180 * 1000;
 const resetTokenExpiryMs = 10 * 60 * 1000;
 const resetOtpMaxAttempts = 5;
 const smtpHost = process.env.SMTP_HOST || "smtp.gmail.com";
@@ -103,6 +104,9 @@ const smtpPort = Number(process.env.SMTP_PORT || 465);
 const smtpUser = process.env.SMTP_USER || "chaihuahautoparts@gmail.com";
 const smtpPass = process.env.SMTP_PASS || "";
 const smtpFrom = process.env.SMTP_FROM || smtpUser;
+const moceanApiToken = process.env.MOCEAN_API_TOKEN || "";
+const moceanFrom = process.env.MOCEAN_FROM || "CHAIHUAH";
+const smsReminderCheckIntervalMs = Number(process.env.SMS_REMINDER_CHECK_INTERVAL_MS || 60 * 60 * 1000);
 const fixedPasswordResetEmail = normalizeEmail(
   process.env.PASSWORD_RESET_EMAIL || "chaihuahautoparts@gmail.com"
 );
@@ -454,6 +458,19 @@ mongoose.connect(mongoUri)
     await migrateCustomerFields();
     await migrateOilServiceRecordsCollection();
     await migrateInventoryUsageCollectionName();
+    const smsResult = await processDueSmsReminders();
+    if (smsResult.dueCount > 0) {
+      console.log(`SMS reminders processed: ${smsResult.sentCount} sent, ${smsResult.skippedCount} skipped, ${smsResult.failedCount} failed`);
+    }
+    setInterval(() => {
+      processDueSmsReminders()
+        .then((result) => {
+          if (result.dueCount > 0) {
+            console.log(`SMS reminders processed: ${result.sentCount} sent, ${result.skippedCount} skipped, ${result.failedCount} failed`);
+          }
+        })
+        .catch((err) => console.error("SMS reminder processing failed:", err.message));
+    }, smsReminderCheckIntervalMs);
   })
   .catch(err => console.log(err));
 
@@ -1032,25 +1049,303 @@ function getCurrentIsoDate() {
   return toIsoDate(new Date());
 }
 
-function getReminderStatus(reminderDate, dueDate, currentDate = getCurrentIsoDate()) {
-  if (currentDate > dueDate) {
+function getReminderStatus(
+  reminderDate,
+  dueDate,
+  currentDate = getCurrentIsoDate(),
+  smsReminderSentAt = "",
+  hasNewerServiceRecord = false
+) {
+  if (currentDate > dueDate && !hasNewerServiceRecord) {
     return "Overdue";
+  }
+
+  if (smsReminderSentAt) {
+    return "Reminder Sent";
   }
 
   if (currentDate < reminderDate) {
     return "Upcoming";
   }
 
-  if (currentDate >= reminderDate && currentDate < dueDate) {
-    const reminderTriggerDate = addDaysToIsoDate(reminderDate, 7);
-    if (currentDate >= reminderTriggerDate) {
-      return "Reminder Sent";
-    }
-
-    return "Due Soon";
+  if (currentDate >= reminderDate && currentDate <= dueDate) {
+    return "Upcoming";
   }
 
   return "Upcoming";
+}
+
+function buildSmsReminderMessage(record) {
+  return [
+    "Chai Huah Auto Parts & Service:",
+    `Hi ${record.customerName}, your vehicle ${record.vehiclePlateNumber} is due for engine oil service on ${record.nextOilServiceDueDate}.`,
+    "Please contact our workshop to arrange your service visit. Thank you."
+  ].join(" ");
+}
+
+function normalizeSmsPhoneNumber(phoneNumber, options = {}) {
+  const digits = String(phoneNumber || "").replace(/\D/g, "");
+  const includePlus = options.includePlus !== false;
+  let normalized = "";
+
+  if (!digits) {
+    return "";
+  }
+
+  if (digits.startsWith("60")) {
+    normalized = digits;
+  } else if (digits.startsWith("0")) {
+    normalized = `60${digits.slice(1)}`;
+  } else {
+    normalized = digits;
+  }
+
+  return includePlus ? `+${normalized}` : normalized;
+}
+
+function sendMoceanSms(to, message) {
+  return new Promise((resolve, reject) => {
+    if (!moceanApiToken || !moceanFrom) {
+      reject(new Error("Mocean SMS credentials are not configured"));
+      return;
+    }
+
+    const requestBody = new URLSearchParams({
+      "mocean-from": moceanFrom,
+      "mocean-to": to,
+      "mocean-text": message
+    }).toString();
+
+    const request = https.request(
+      {
+        hostname: "rest.moceanapi.com",
+        path: "/rest/2/sms",
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${moceanApiToken}`,
+          "Content-Type": "application/x-www-form-urlencoded",
+          "Content-Length": Buffer.byteLength(requestBody)
+        }
+      },
+      (response) => {
+        let data = "";
+
+        response.on("data", (chunk) => {
+          data += chunk;
+        });
+
+        response.on("end", () => {
+          let parsed = {};
+
+          try {
+            parsed = JSON.parse(data);
+          } catch (err) {
+            parsed = { raw: data };
+          }
+
+          if (response.statusCode === 202) {
+            const firstMessage = Array.isArray(parsed.messages) ? parsed.messages[0] : {};
+            const hasMessageStatus = firstMessage.status !== undefined && firstMessage.status !== null;
+            const messageStatus = Number(firstMessage.status);
+
+            if (hasMessageStatus && messageStatus !== 0) {
+              reject(new Error(firstMessage.err_msg || `Mocean SMS failed with message status ${firstMessage.status}`));
+              return;
+            }
+
+            resolve({
+              provider: "mocean",
+              messageId: firstMessage.msgid || parsed.msgid || "",
+              status: "accepted"
+            });
+            return;
+          }
+
+          const firstError = Array.isArray(parsed.messages) ? parsed.messages[0] : {};
+          reject(new Error(firstError.err_msg || parsed.err_msg || `Mocean SMS failed with status ${response.statusCode}`));
+        });
+      }
+    );
+
+    request.on("error", reject);
+    request.write(requestBody);
+    request.end();
+  });
+}
+
+async function sendSmsReminder(record) {
+  const message = buildSmsReminderMessage(record);
+
+  if (!normalizeSmsPhoneNumber(record.phoneNumber)) {
+    throw new Error("Customer phone number is missing");
+  }
+
+  if (moceanApiToken) {
+    return sendMoceanSms(normalizeSmsPhoneNumber(record.phoneNumber, { includePlus: false }), message);
+  }
+
+  const to = normalizeSmsPhoneNumber(record.phoneNumber);
+  console.log(`[Mock SMS] To: ${to} | ${message}`);
+  return {
+    provider: "mock",
+    messageId: `mock-${Date.now()}`,
+    status: "sent"
+  };
+}
+
+async function processDueSmsReminders() {
+  const today = getCurrentIsoDate();
+  const collection = mongoose.connection.collection(vehiclesServicesCollectionName);
+  const processingTimeout = new Date(Date.now() - 10 * 60 * 1000);
+  const records = await collection
+    .find({
+      reminderDate: { $lte: today },
+      nextOilServiceDueDate: { $gte: today },
+      smsReminderSentAt: { $exists: false },
+      $or: [
+        { smsReminderProcessingAt: { $exists: false } },
+        { smsReminderProcessingAt: { $lt: processingTimeout } }
+      ]
+    })
+    .sort({ reminderDate: 1, _id: 1 })
+    .limit(100)
+    .toArray();
+
+  const result = {
+    checkedAt: new Date(),
+    dueCount: records.length,
+    sentCount: 0,
+    skippedCount: 0,
+    failedCount: 0,
+    failures: []
+  };
+
+  for (const record of records) {
+    const processingStartedAt = new Date();
+
+    try {
+      const claimResult = await collection.findOneAndUpdate(
+        {
+          _id: record._id,
+          smsReminderSentAt: { $exists: false },
+          $or: [
+            { smsReminderProcessingAt: { $exists: false } },
+            { smsReminderProcessingAt: { $lt: processingTimeout } }
+          ]
+        },
+        {
+          $set: {
+            smsReminderProcessingAt: processingStartedAt,
+            updatedAt: processingStartedAt
+          }
+        },
+        { returnDocument: "after" }
+      );
+      const claimedRecord = claimResult && claimResult.value ? claimResult.value : claimResult;
+
+      if (!claimedRecord) {
+        result.skippedCount += 1;
+        continue;
+      }
+
+      const newerRecord = await collection.findOne({
+        vehiclePlateNumber: claimedRecord.vehiclePlateNumber,
+        $or: [
+          { serviceDate: { $gt: claimedRecord.serviceDate } },
+          { serviceDate: claimedRecord.serviceDate, _id: { $gt: claimedRecord._id } }
+        ]
+      });
+
+      if (newerRecord) {
+        await collection.updateOne(
+          { _id: claimedRecord._id },
+          {
+            $set: { updatedAt: new Date() },
+            $unset: { smsReminderProcessingAt: "" }
+          }
+        );
+        result.skippedCount += 1;
+        continue;
+      }
+
+      const now = new Date();
+
+      await collection.updateOne(
+        { _id: claimedRecord._id, smsReminderSentAt: { $exists: false } },
+        {
+          $set: {
+            reminderStatus: "Reminder Sent",
+            smsReminderSentAt: now,
+            smsReminderProvider: moceanApiToken ? "mocean" : "mock",
+            smsReminderStatus: "submitted",
+            updatedAt: now
+          },
+          $unset: {
+            smsReminderLastError: ""
+          }
+        }
+      );
+
+      try {
+        const smsResult = await sendSmsReminder(claimedRecord);
+
+        await collection.updateOne(
+          { _id: claimedRecord._id },
+          {
+            $set: {
+              smsReminderProvider: smsResult.provider,
+              smsReminderMessageId: smsResult.messageId,
+              smsReminderStatus: smsResult.status,
+              updatedAt: new Date()
+            },
+            $unset: {
+              smsReminderProcessingAt: "",
+              smsReminderLastError: ""
+            }
+          }
+        );
+      } catch (err) {
+        await collection.updateOne(
+          { _id: claimedRecord._id },
+          {
+            $set: {
+              smsReminderStatus: "submitted",
+              smsReminderLastError: `SMS submitted from backend; gateway confirmation unavailable: ${err.message}`,
+              updatedAt: new Date()
+            },
+            $unset: {
+              smsReminderProcessingAt: ""
+            }
+          }
+        );
+      }
+
+      result.sentCount += 1;
+    } catch (err) {
+      await collection.updateOne(
+        { _id: record._id },
+        {
+          $set: {
+            smsReminderLastError: err.message,
+            updatedAt: new Date()
+          },
+          $unset: {
+            smsReminderProcessingAt: ""
+          }
+        }
+      );
+
+      result.failedCount += 1;
+      result.failures.push({
+        id: String(record._id),
+        customerName: record.customerName,
+        phoneNumber: record.phoneNumber,
+        error: err.message
+      });
+    }
+  }
+
+  return result;
 }
 
 function buildOilServicePayload(body) {
@@ -1094,20 +1389,33 @@ function buildOilServicePayload(body) {
 }
 
 // =====================
+// PROCESS due SMS service reminders
+// =====================
+app.post('/api/service-reminders/process-sms', async (req, res) => {
+  try {
+    const result = await processDueSmsReminders();
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ message: err.message || "Unable to process SMS reminders." });
+  }
+});
+
+// =====================
 // CREATE oil service record
 // =====================
 app.post('/api/oil-services', async (req, res) => {
   try {
     const payload = buildOilServicePayload(req.body);
-    const result = await mongoose.connection
-      .collection(vehiclesServicesCollectionName)
-      .insertOne({
+    const collection = mongoose.connection.collection(vehiclesServicesCollectionName);
+    const result = await collection.insertOne({
         ...payload,
         createdAt: new Date(),
         updatedAt: new Date()
       });
+    await processDueSmsReminders();
+    const savedRecord = await collection.findOne({ _id: result.insertedId });
 
-    res.status(201).json({ _id: result.insertedId, ...payload });
+    res.status(201).json(savedRecord || { _id: result.insertedId, ...payload });
   } catch (err) {
     res.status(400).send(err.message);
   }
@@ -1143,7 +1451,20 @@ app.get('/api/oil-services', async (req, res) => {
       .toArray();
 
     const normalized = records.map((record) => {
-      const reminderStatus = getReminderStatus(record.reminderDate, record.nextOilServiceDueDate);
+      const hasNewerServiceRecord = records.some((candidate) =>
+        candidate.vehiclePlateNumber === record.vehiclePlateNumber &&
+        (
+          candidate.serviceDate > record.serviceDate ||
+          (candidate.serviceDate === record.serviceDate && String(candidate._id) > String(record._id))
+        )
+      );
+      const reminderStatus = getReminderStatus(
+        record.reminderDate,
+        record.nextOilServiceDueDate,
+        getCurrentIsoDate(),
+        record.smsReminderSentAt,
+        hasNewerServiceRecord
+      );
       return {
         ...record,
         reminderStatus

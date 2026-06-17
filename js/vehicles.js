@@ -392,12 +392,10 @@ function createVehicleCardHtml(record) {
 function renderVehicleCards() {
   const visibleCards = getVisibleVehicleCards();
   const latestRecords = groupLatestVehicleRecords(oilServiceRecords);
-  const dueRecords = latestRecords.filter((record) =>
-    ["Due Soon", "Reminder Sent", "Overdue"].includes(record.reminderStatus)
-  );
+  const reminderSentRecords = latestRecords.filter((record) => record.reminderStatus === "Reminder Sent");
 
   trackedVehiclesCount.textContent = latestRecords.length;
-  dueVehiclesCount.textContent = dueRecords.length;
+  dueVehiclesCount.textContent = reminderSentRecords.length;
 
   if (visibleCards.length === 0) {
     vehicleCardsContainer.innerHTML = `

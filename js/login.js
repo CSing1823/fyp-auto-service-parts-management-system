@@ -210,7 +210,7 @@ async function requestOtp(email) {
   hideResetMessage(verifyOtpMessage);
   otpCodeInput.value = "";
   showResetStep("otp");
-  startOtpTimer(data.expiresInSeconds || 60);
+  startOtpTimer(data.expiresInSeconds || 180);
   setTimeout(() => otpCodeInput.focus(), 0);
 }
 

@@ -43,14 +43,14 @@ function renderReminderSummary(records) {
   const counts = {
     tracked: latestRecords.length,
     upcoming: latestRecords.filter((record) => record.reminderStatus === "Upcoming").length,
-    dueAction: latestRecords.filter((record) => ["Due Soon", "Reminder Sent"].includes(record.reminderStatus)).length,
+    reminderSent: latestRecords.filter((record) => record.reminderStatus === "Reminder Sent").length,
     overdue: latestRecords.filter((record) => record.reminderStatus === "Overdue").length
   };
 
   reminderSummaryGrid.innerHTML = [
     createSummaryCard("Tracked Vehicles", counts.tracked, "bi-car-front-fill", "neutral"),
     createSummaryCard("Upcoming", counts.upcoming, "bi-calendar-check-fill", "upcoming"),
-    createSummaryCard("Need Action", counts.dueAction, "bi-bell-fill", "warning"),
+    createSummaryCard("Reminder Sent", counts.reminderSent, "bi-chat-dots-fill", "warning"),
     createSummaryCard("Overdue", counts.overdue, "bi-exclamation-triangle-fill", "danger")
   ].join("");
 }
@@ -131,6 +131,18 @@ function createReminderCardHtml(record) {
             <i class="bi bi-calendar2-check"></i>
             <span>Recommended action window starts on ${escapeHtml(record.reminderDate)}</span>
           </div>
+          ${record.smsReminderSentAt ? `
+            <div class="contact-row">
+              <i class="bi bi-chat-dots-fill"></i>
+              <span>SMS reminder sent on ${escapeHtml(formatReminderDateTime(record.smsReminderSentAt))}</span>
+            </div>
+          ` : ""}
+          ${record.smsReminderLastError && record.reminderStatus !== "Reminder Sent" ? `
+            <div class="contact-row">
+              <i class="bi bi-exclamation-circle-fill"></i>
+              <span>SMS reminder pending: ${escapeHtml(record.smsReminderLastError)}</span>
+            </div>
+          ` : ""}
         </div>
       </div>
     </div>
@@ -139,6 +151,16 @@ function createReminderCardHtml(record) {
 
 function formatReminderMileage(value) {
   return `${Number(value || 0).toLocaleString()} km`;
+}
+
+function formatReminderDateTime(value) {
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    return value;
+  }
+
+  return date.toLocaleString();
 }
 
 function renderReminderCards() {
@@ -173,6 +195,7 @@ reminderFilterButtons.forEach((btn) => {
 });
 
 async function initializeRemindersPage() {
+  await processDueSmsReminders();
   reminderRecords = await loadOilServiceRecords();
   renderReminderCards();
 }

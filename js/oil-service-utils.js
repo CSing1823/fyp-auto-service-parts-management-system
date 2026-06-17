@@ -1,11 +1,12 @@
 const OIL_SERVICE_API_URL = "http://localhost:3000/api/oil-services";
+const SERVICE_REMINDER_SMS_API_URL = "http://localhost:3000/api/service-reminders/process-sms";
 const OIL_SERVICE_STORAGE_KEY = "oilServiceRecords";
 const OIL_SERVICE_PACKAGES = {
   "5000km (3 months)": 3,
   "7000km (6 months)": 6,
   "10000km (12 months)": 12
 };
-const REMINDER_STATUS_ORDER = ["Upcoming", "Due Soon", "Reminder Sent", "Overdue"];
+const REMINDER_STATUS_ORDER = ["Upcoming", "Reminder Sent", "Overdue"];
 
 const sampleOilServiceRecords = [
   {
@@ -83,7 +84,11 @@ function normalizeOilServiceRecord(record) {
     currentMileage: Number(record.currentMileage),
     oilServicePackage: record.oilServicePackage,
     engineOilType: String(record.engineOilType || "").trim(),
-    partsUsed: String(record.partsUsed || "").trim()
+    partsUsed: String(record.partsUsed || "").trim(),
+    smsReminderSentAt: record.smsReminderSentAt || "",
+    smsReminderProvider: record.smsReminderProvider || "",
+    smsReminderStatus: record.smsReminderStatus || "",
+    smsReminderLastError: record.smsReminderLastError || ""
   };
 
   const computedDates = calculateOilServiceDates(
@@ -95,7 +100,9 @@ function normalizeOilServiceRecord(record) {
   normalizedRecord.reminderDate = record.reminderDate || computedDates.reminderDate;
   normalizedRecord.reminderStatus = getReminderStatus(
     normalizedRecord.reminderDate,
-    normalizedRecord.nextOilServiceDueDate
+    normalizedRecord.nextOilServiceDueDate,
+    todayIsoDate(),
+    normalizedRecord.smsReminderSentAt
   );
 
   return normalizedRecord;
@@ -150,23 +157,23 @@ function todayIsoDate() {
   return toIsoDate(new Date());
 }
 
-function getReminderStatus(reminderDate, dueDate, currentDate = todayIsoDate()) {
+function getReminderStatus(reminderDate, dueDate, currentDate = todayIsoDate(), smsReminderSentAt = "") {
   if (!reminderDate || !dueDate) return "Upcoming";
 
   if (currentDate > dueDate) {
     return "Overdue";
   }
 
+  if (smsReminderSentAt) {
+    return "Reminder Sent";
+  }
+
   if (currentDate < reminderDate) {
     return "Upcoming";
   }
 
-  if (currentDate >= reminderDate && currentDate < dueDate) {
-    const reminderTriggerDate = addDaysToIsoDate(reminderDate, 7);
-    if (currentDate >= reminderTriggerDate) {
-      return "Reminder Sent";
-    }
-    return "Due Soon";
+  if (currentDate >= reminderDate && currentDate <= dueDate) {
+    return "Upcoming";
   }
 
   return "Upcoming";
@@ -181,7 +188,6 @@ function addDaysToIsoDate(isoDate, dayCount) {
 function getOilServiceStatusClass(status) {
   if (status === "Overdue") return "overdue";
   if (status === "Reminder Sent") return "reminder-sent";
-  if (status === "Due Soon") return "due-soon";
   return "upcoming";
 }
 
@@ -216,6 +222,17 @@ async function loadOilServiceRecords() {
     return normalized;
   } catch (err) {
     return getOilServiceRecordsFromStorage();
+  }
+}
+
+async function processDueSmsReminders() {
+  try {
+    const res = await fetch(SERVICE_REMINDER_SMS_API_URL, { method: "POST" });
+    if (!res.ok) throw new Error("Unable to process SMS reminders");
+
+    return await res.json();
+  } catch (err) {
+    return null;
   }
 }
 
