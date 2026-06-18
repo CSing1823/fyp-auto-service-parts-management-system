@@ -168,9 +168,13 @@
               </div>
               <div class="col-md-6">
                 <label for="vehiclePlateNumber" class="form-label modal-label">Car Plate</label>
-                <select class="form-select modal-input" id="vehiclePlateNumber" required>
-                  <option value="">Select car plate</option>
-                </select>
+                <div class="car-plate-combobox" id="vehiclePlateNumberCombobox">
+                  <input type="text" class="form-control modal-input car-plate-select car-plate-search-input" id="vehiclePlateNumber" placeholder="Select car plate" autocomplete="off" readonly required role="combobox" aria-expanded="false" aria-controls="vehiclePlateNumberOptions">
+                  <button type="button" class="car-plate-dropdown-btn" id="vehiclePlateNumberToggle" aria-label="Show car plates">
+                    <i class="bi bi-chevron-down"></i>
+                  </button>
+                  <div class="car-plate-options d-none" id="vehiclePlateNumberOptions" role="listbox"></div>
+                </div>
               </div>
               <div class="col-md-6">
                 <label for="phoneNumber" class="form-label modal-label">Phone Number</label>

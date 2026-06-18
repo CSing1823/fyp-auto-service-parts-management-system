@@ -36,6 +36,9 @@ const customerNameCombobox = document.getElementById("customerNameCombobox");
 const customerNameOptions = document.getElementById("customerNameOptions");
 const customerNameToggle = document.getElementById("customerNameToggle");
 const vehiclePlateNumberInput = document.getElementById("vehiclePlateNumber");
+const vehiclePlateNumberCombobox = document.getElementById("vehiclePlateNumberCombobox");
+const vehiclePlateNumberOptions = document.getElementById("vehiclePlateNumberOptions");
+const vehiclePlateNumberToggle = document.getElementById("vehiclePlateNumberToggle");
 const vehicleModelInput = document.getElementById("vehicleModel");
 const currentMileageInput = document.getElementById("currentMileage");
 const oilServicePackageCombobox = document.getElementById("oilServicePackageCombobox");
@@ -214,16 +217,38 @@ function renderCarPlateOptions(customerName = customerNameInput.value, selectedP
   const customerVehicles = customers.filter((customer) => getCustomerName(customer) === customerName);
   const plates = customerVehicles.map(getCustomerPlate).filter(Boolean);
   const selectedExists = selectedPlate && plates.includes(selectedPlate);
+  const optionPlates = !selectedExists && selectedPlate ? [selectedPlate, ...plates] : plates;
 
-  vehiclePlateNumberInput.innerHTML = [
-    `<option value="">Select car plate</option>`,
-    !selectedExists && selectedPlate ? `<option value="${escapeHtml(selectedPlate)}">${escapeHtml(selectedPlate)}</option>` : "",
-    ...customerVehicles.map((customer) => {
-      const plate = getCustomerPlate(customer);
-      return `<option value="${escapeHtml(plate)}">${escapeHtml(plate)}</option>`;
-    })
-  ].join("");
+  if (optionPlates.length === 0) {
+    vehiclePlateNumberOptions.innerHTML = `<div class="car-plate-option-empty">Select a customer first</div>`;
+  } else {
+    vehiclePlateNumberOptions.innerHTML = optionPlates
+      .map((plate) => `
+        <button type="button" class="car-plate-option${plate === selectedPlate ? " active" : ""}" data-plate="${escapeHtml(plate)}" role="option">
+          ${escapeHtml(plate)}
+        </button>
+      `)
+      .join("");
+  }
+
   vehiclePlateNumberInput.value = selectedPlate;
+}
+
+function openCarPlateOptions() {
+  renderCarPlateOptions(customerNameInput.value, vehiclePlateNumberInput.value);
+  vehiclePlateNumberOptions.classList.remove("d-none");
+  vehiclePlateNumberInput.setAttribute("aria-expanded", "true");
+}
+
+function closeCarPlateOptions() {
+  vehiclePlateNumberOptions.classList.add("d-none");
+  vehiclePlateNumberInput.setAttribute("aria-expanded", "false");
+}
+
+function selectCarPlate(plate) {
+  vehiclePlateNumberInput.value = plate;
+  closeCarPlateOptions();
+  populateVehicleFieldsFromCustomer();
 }
 
 function getSelectedCustomerVehicle() {
@@ -676,7 +701,30 @@ document.addEventListener("click", function (e) {
   }
 });
 
-vehiclePlateNumberInput.addEventListener("change", populateVehicleFieldsFromCustomer);
+vehiclePlateNumberInput.addEventListener("focus", openCarPlateOptions);
+vehiclePlateNumberInput.addEventListener("click", openCarPlateOptions);
+
+vehiclePlateNumberToggle.addEventListener("click", function () {
+  if (vehiclePlateNumberOptions.classList.contains("d-none")) {
+    openCarPlateOptions();
+    vehiclePlateNumberInput.focus();
+  } else {
+    closeCarPlateOptions();
+  }
+});
+
+vehiclePlateNumberOptions.addEventListener("click", function (e) {
+  const option = e.target.closest(".car-plate-option");
+  if (!option) return;
+
+  selectCarPlate(option.dataset.plate);
+});
+
+document.addEventListener("click", function (e) {
+  if (!vehiclePlateNumberCombobox.contains(e.target)) {
+    closeCarPlateOptions();
+  }
+});
 
 oilServicePackageInput.addEventListener("focus", openOilServicePackageOptions);
 oilServicePackageInput.addEventListener("click", openOilServicePackageOptions);

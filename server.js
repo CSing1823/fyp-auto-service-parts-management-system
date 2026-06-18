@@ -1076,9 +1076,17 @@ function getReminderStatus(
 }
 
 function buildSmsReminderMessage(record) {
+  const vehicleDetails = [record.vehicleBrand, record.vehicleModel]
+    .map((value) => String(value || "").trim())
+    .filter(Boolean)
+    .join(" ");
+  const vehicleText = vehicleDetails
+    ? `${record.vehiclePlateNumber} (${vehicleDetails})`
+    : record.vehiclePlateNumber;
+
   return [
     "Chai Huah Auto Parts & Service:",
-    `Hi ${record.customerName}, your vehicle ${record.vehiclePlateNumber} is due for engine oil service on ${record.nextOilServiceDueDate}.`,
+    `Hi ${record.customerName}, your vehicle ${vehicleText} is due for engine oil service on ${record.nextOilServiceDueDate}.`,
     "Please contact our workshop to arrange your service visit. Thank you."
   ].join(" ");
 }

@@ -195,6 +195,10 @@ a {
   color: #ef4444;
 }
 
+.trend.neutral {
+  color: #60a5fa;
+}
+
 .stat-label {
   color: #9ca3af;
   margin-bottom: 8px;
@@ -302,6 +306,69 @@ a {
 .status-pill.scheduled {
   background-color: rgba(59, 130, 246, 0.12);
   color: #60a5fa;
+}
+
+.status-pill.critical {
+  background-color: rgba(239, 68, 68, 0.12);
+  color: #ef4444;
+}
+
+.compact {
+  gap: 12px;
+}
+
+.compact-item {
+  padding: 14px;
+}
+
+.empty-card {
+  border: 1px dashed #2f3744;
+  color: #9ca3af;
+  border-radius: 14px;
+  padding: 18px;
+  background-color: rgba(18, 18, 18, 0.68);
+}
+
+.chart-list {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.chart-row {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.chart-row-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  color: #d1d5db;
+  font-size: 14px;
+}
+
+.chart-row-header span {
+  overflow-wrap: anywhere;
+}
+
+.chart-row-header strong {
+  color: #ffffff;
+}
+
+.chart-track {
+  height: 10px;
+  background-color: #10151f;
+  border: 1px solid #263041;
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.chart-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #ffc107, #22c55e);
+  border-radius: inherit;
 }
 
 /* Mobile */

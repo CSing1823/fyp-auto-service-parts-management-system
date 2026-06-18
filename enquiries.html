@@ -191,11 +191,13 @@
 
           <div class="mb-4">
             <label for="enquiryStatus" class="form-label modal-label">Status</label>
-            <select class="form-select modal-input" id="enquiryStatus" required>
-              <option value="Pending">Pending</option>
-              <option value="Checked, Not Told">Checked, Not Told</option>
-              <option value="Checked, Told">Checked, Told</option>
-            </select>
+            <div class="enquiry-status-combobox" id="enquiryStatusCombobox">
+              <input type="text" class="form-control modal-input enquiry-status-input" id="enquiryStatus" value="Pending" autocomplete="off" readonly required role="combobox" aria-expanded="false" aria-controls="enquiryStatusOptions">
+              <button type="button" class="enquiry-status-dropdown-btn" id="enquiryStatusToggle" aria-label="Show enquiry statuses">
+                <i class="bi bi-chevron-down"></i>
+              </button>
+              <div class="enquiry-status-options d-none" id="enquiryStatusOptions" role="listbox"></div>
+            </div>
           </div>
 
           <div class="d-flex justify-content-end gap-2">

@@ -393,7 +393,26 @@ a {
 }
 
 .brand-search-input {
+  cursor: pointer;
+  background:
+    linear-gradient(135deg, rgba(167, 139, 250, 0.22), transparent 36%),
+    linear-gradient(135deg, rgba(91, 33, 182, 0.22), rgba(15, 23, 42, 0.98));
+  border-color: rgba(167, 139, 250, 0.42);
+  box-shadow: 0 0 0 1px rgba(167, 139, 250, 0.1) inset, 0 12px 28px rgba(0, 0, 0, 0.18);
   padding-right: 44px;
+}
+
+.brand-search-input:hover {
+  border-color: rgba(196, 181, 253, 0.72);
+  box-shadow: 0 0 0 1px rgba(167, 139, 250, 0.2) inset, 0 14px 32px rgba(167, 139, 250, 0.1);
+}
+
+.brand-search-input:focus {
+  background:
+    linear-gradient(135deg, rgba(196, 181, 253, 0.24), transparent 36%),
+    linear-gradient(135deg, rgba(91, 33, 182, 0.28), rgba(15, 23, 42, 0.98));
+  border-color: #a78bfa;
+  box-shadow: 0 0 0 3px rgba(167, 139, 250, 0.18), 0 0 24px rgba(167, 139, 250, 0.12);
 }
 
 .brand-dropdown-btn {
@@ -404,8 +423,8 @@ a {
   height: 34px;
   border: 0;
   border-radius: 10px;
-  background: transparent;
-  color: #9ca3af;
+  background: rgba(167, 139, 250, 0.1);
+  color: #c4b5fd;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -414,13 +433,13 @@ a {
 
 .brand-dropdown-btn:hover,
 .brand-dropdown-btn:focus {
-  background-color: rgba(255, 193, 7, 0.12);
-  color: #ffc107;
+  background-color: rgba(167, 139, 250, 0.2);
+  color: #ddd6fe;
 }
 
 .brand-dropdown-btn:focus {
   outline: none;
-  box-shadow: 0 0 0 3px rgba(255, 193, 7, 0.16);
+  box-shadow: 0 0 0 3px rgba(167, 139, 250, 0.16);
 }
 
 .brand-options {

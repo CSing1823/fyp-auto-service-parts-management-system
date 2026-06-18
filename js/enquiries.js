@@ -36,6 +36,9 @@ const phoneNumberInput = document.getElementById("phoneNumber");
 const itemsEnquiredInput = document.getElementById("itemsEnquired");
 const followUpDateInput = document.getElementById("followUpDate");
 const enquiryStatusInput = document.getElementById("enquiryStatus");
+const enquiryStatusCombobox = document.getElementById("enquiryStatusCombobox");
+const enquiryStatusOptions = document.getElementById("enquiryStatusOptions");
+const enquiryStatusToggle = document.getElementById("enquiryStatusToggle");
 
 let enquiries = [];
 let activeStatusFilter = "All";
@@ -138,6 +141,32 @@ function getStatusClass(status) {
   if (status === "Checked, Told") return "told";
   if (status === "Checked, Not Told") return "not-told";
   return "pending";
+}
+
+function renderEnquiryStatusOptions() {
+  enquiryStatusOptions.innerHTML = statusOptions
+    .map((status) => `
+      <button type="button" class="enquiry-status-option ${getStatusClass(status)}${status === enquiryStatusInput.value ? " active" : ""}" data-status="${escapeHtml(status)}" role="option">
+        ${escapeHtml(status)}
+      </button>
+    `)
+    .join("");
+}
+
+function openEnquiryStatusOptions() {
+  renderEnquiryStatusOptions();
+  enquiryStatusOptions.classList.remove("d-none");
+  enquiryStatusInput.setAttribute("aria-expanded", "true");
+}
+
+function closeEnquiryStatusOptions() {
+  enquiryStatusOptions.classList.add("d-none");
+  enquiryStatusInput.setAttribute("aria-expanded", "false");
+}
+
+function selectEnquiryStatus(status) {
+  enquiryStatusInput.value = status;
+  closeEnquiryStatusOptions();
 }
 
 function getVisibleEnquiries() {
@@ -379,6 +408,31 @@ if (enquiryModalElement) {
 if (enquirySearchInput) {
   enquirySearchInput.addEventListener("input", renderEnquiries);
 }
+
+enquiryStatusInput.addEventListener("focus", openEnquiryStatusOptions);
+enquiryStatusInput.addEventListener("click", openEnquiryStatusOptions);
+
+enquiryStatusToggle.addEventListener("click", function () {
+  if (enquiryStatusOptions.classList.contains("d-none")) {
+    openEnquiryStatusOptions();
+    enquiryStatusInput.focus();
+  } else {
+    closeEnquiryStatusOptions();
+  }
+});
+
+enquiryStatusOptions.addEventListener("click", function (e) {
+  const option = e.target.closest(".enquiry-status-option");
+  if (!option) return;
+
+  selectEnquiryStatus(option.dataset.status);
+});
+
+document.addEventListener("click", function (e) {
+  if (!enquiryStatusCombobox.contains(e.target)) {
+    closeEnquiryStatusOptions();
+  }
+});
 
 filterButtons.forEach((btn) => {
   btn.addEventListener("click", function () {
