@@ -32,6 +32,13 @@ const customerModalTitle = document.getElementById("customerModalTitle");
 const customerSubmitBtn = document.getElementById("customerSubmitBtn");
 const addCustomerModalElement = document.getElementById("addCustomerModal");
 const addCustomerBtn = document.querySelector(".add-btn");
+const customerFormError = document.getElementById("customerFormError");
+const deleteCustomerModalElement = document.getElementById("deleteCustomerModal");
+const deleteCustomerName = document.getElementById("deleteCustomerName");
+const deleteCustomerVehicle = document.getElementById("deleteCustomerVehicle");
+const deleteCustomerError = document.getElementById("deleteCustomerError");
+const confirmDeleteCustomerButton = document.getElementById("confirmDeleteCustomerBtn");
+let pendingDeleteCustomerId = "";
 
 const vehicleBrands = [
   "Toyota",
@@ -74,6 +81,81 @@ function escapeHtml(value) {
     .replaceAll('"', "&quot;")
     .replaceAll("'", "&#039;");
 }
+
+const customerFieldRules = [
+  {
+    input: customerNameInput,
+    message: document.getElementById("customerNameError"),
+    validate(value) {
+      if (!value) return "Enter the customer's name.";
+      const letterCount = (value.match(/\p{L}/gu) || []).length;
+      if (letterCount < 2 || value.length > 100 || !/^[\p{L}\p{M}][\p{L}\p{M}\s'.’\-]*$/u.test(value)) {
+        return "Enter a name with at least 2 letters. You may use spaces, apostrophes, periods, or hyphens (up to 100 characters).";
+      }
+      return "";
+    }
+  },
+  {
+    input: phoneNumberInput,
+    message: document.getElementById("phoneNumberError"),
+    validate(value) {
+      if (!value) return "Enter a phone number.";
+      const digits = value.replace(/\D/g, "");
+      const localDigits = digits.startsWith("60") ? `0${digits.slice(2)}` : digits;
+      if (!/^\+?[0-9][0-9\s()-]*$/.test(value) || !/^0\d{8,10}$/.test(localDigits)) {
+        return "Enter a valid Malaysian number, such as 011 1234 5678 or +60 11 1234 5678.";
+      }
+      return "";
+    }
+  },
+  {
+    input: vehicleBrandInput,
+    message: document.getElementById("vehicleBrandError"),
+    validate(value) {
+      return value ? "" : "Select or enter a vehicle brand.";
+    }
+  },
+  {
+    input: vehicleModelInput,
+    message: document.getElementById("vehicleModelError"),
+    validate(value) {
+      if (!value) return "Enter the vehicle model.";
+      if (value.length > 80 || !/^[\p{L}\p{M}\p{N}][\p{L}\p{M}\p{N}\s.'’()\/-]*$/u.test(value)) {
+        return "Use letters, numbers, spaces, or common punctuation (up to 80 characters).";
+      }
+      return "";
+    }
+  },
+  {
+    input: carPlateNumberInput,
+    message: document.getElementById("carPlateNumberError"),
+    validate(value) {
+      if (!value) return "Enter the car plate number.";
+      const compactValue = value.replace(/[\s-]/g, "");
+      if (!/^[A-Z0-9 -]+$/i.test(value) || compactValue.length < 2 || compactValue.length > 20) {
+        return "Use 2–20 letters or numbers. Spaces and hyphens are okay.";
+      }
+      return "";
+    }
+  }
+];
+
+function validateCustomerField(field) {
+  const error = field.validate(field.input.value.trim());
+  field.input.classList.toggle("is-invalid", Boolean(error));
+  field.input.setAttribute("aria-invalid", String(Boolean(error)));
+  field.message.textContent = error;
+  field.message.classList.toggle("d-none", !error);
+  field.message.classList.toggle("d-block", Boolean(error));
+  return !error;
+}
+
+customerFieldRules.forEach((field) => {
+  field.input.addEventListener("blur", () => validateCustomerField(field));
+  field.input.addEventListener("input", () => {
+    if (field.input.classList.contains("is-invalid")) validateCustomerField(field);
+  });
+});
 
 function getVehicleBrand(customer) {
   return customer.vehicleBrand || "";
@@ -158,6 +240,7 @@ function setupVehicleBrandCombobox() {
 
     vehicleBrandInput.value = option.dataset.brand;
     closeVehicleBrandOptions();
+    validateCustomerField(customerFieldRules.find((field) => field.input === vehicleBrandInput));
     vehicleModelInput.focus();
   });
 
@@ -242,6 +325,15 @@ function resetCustomerForm() {
   closeVehicleBrandOptions();
   customerModalTitle.textContent = "Add Customer";
   customerSubmitBtn.textContent = "Add Customer";
+  customerFormError.textContent = "";
+  customerFormError.classList.add("d-none");
+  customerFieldRules.forEach((field) => {
+    field.input.classList.remove("is-invalid");
+    field.input.setAttribute("aria-invalid", "false");
+    field.message.textContent = "";
+    field.message.classList.add("d-none");
+    field.message.classList.remove("d-block");
+  });
 }
 
  if (addCustomerBtn) {
@@ -262,6 +354,9 @@ if (addCustomerModalElement) {
 addCustomerForm.addEventListener("submit", async function (e) {
   e.preventDefault();
 
+  customerFormError.textContent = "";
+  customerFormError.classList.add("d-none");
+
   const customerName = customerNameInput.value.trim();
   const phoneNumber = phoneNumberInput.value.trim();
   const vehicleBrand = vehicleBrandInput.value.trim();
@@ -270,8 +365,9 @@ addCustomerForm.addEventListener("submit", async function (e) {
 
   const customerId = editCustomerIdInput.value;
 
-  if (!customerName || !phoneNumber || !vehicleBrand || !vehicleModel || !carPlateNumber) {
-    alert("Please fill all fields");
+  const invalidFields = customerFieldRules.filter((field) => !validateCustomerField(field));
+  if (invalidFields.length > 0) {
+    invalidFields[0].input.focus();
     return;
   }
 
@@ -279,8 +375,9 @@ addCustomerForm.addEventListener("submit", async function (e) {
 
   try {
     // UPDATE
+    let response;
     if (customerId) {
-      await fetch(`http://localhost:3000/api/customers/${customerId}`, {
+      response = await fetch(`http://localhost:3000/api/customers/${customerId}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(customerData)
@@ -288,11 +385,16 @@ addCustomerForm.addEventListener("submit", async function (e) {
     } 
     // CREATE
     else {
-      await fetch("http://localhost:3000/api/customers", {
+      response = await fetch("http://localhost:3000/api/customers", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(customerData)
       });
+    }
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(errorText || "Unable to save customer details.");
     }
 
     await loadCustomersFromDB();
@@ -304,7 +406,8 @@ addCustomerForm.addEventListener("submit", async function (e) {
 
   } catch (err) {
     console.error(err);
-    alert("Error saving data");
+    customerFormError.textContent = err.message || "Error saving customer details.";
+    customerFormError.classList.remove("d-none");
   }
 });
 
@@ -313,23 +416,54 @@ addCustomerForm.addEventListener("submit", async function (e) {
 ====================== */
 function addDeleteEvents() {
   document.querySelectorAll(".delete-btn").forEach(btn => {
-    btn.addEventListener("click", async function () {
+    btn.addEventListener("click", function () {
       const id = this.dataset.id;
+      const customer = customers.find((item) => item._id === id);
+      if (!customer) return;
 
-      if (!confirm("Delete this customer?")) return;
-
-      try {
-        await fetch(`http://localhost:3000/api/customers/${id}`, {
-          method: "DELETE"
-        });
-
-        await loadCustomersFromDB();
-      } catch (err) {
-        console.error(err);
-      }
+      pendingDeleteCustomerId = id;
+      deleteCustomerName.textContent = getCustomerName(customer);
+      deleteCustomerVehicle.textContent = [
+        getVehicleBrand(customer),
+        getVehicleModel(customer),
+        getCarPlateNumber(customer)
+      ].filter(Boolean).join(" · ");
+      deleteCustomerError.textContent = "";
+      deleteCustomerError.classList.add("d-none");
+      bootstrap.Modal.getOrCreateInstance(deleteCustomerModalElement).show();
     });
   });
 }
+
+confirmDeleteCustomerButton.addEventListener("click", async function () {
+  if (!pendingDeleteCustomerId) return;
+
+  confirmDeleteCustomerButton.disabled = true;
+  confirmDeleteCustomerButton.innerHTML = '<span class="spinner-border spinner-border-sm me-2" aria-hidden="true"></span>Deleting...';
+
+  try {
+    const response = await fetch(`http://localhost:3000/api/customers/${pendingDeleteCustomerId}`, {
+      method: "DELETE"
+    });
+    if (!response.ok) throw new Error("Unable to delete this customer. Please try again.");
+
+    await loadCustomersFromDB();
+    bootstrap.Modal.getInstance(deleteCustomerModalElement).hide();
+  } catch (err) {
+    console.error(err);
+    deleteCustomerError.textContent = err.message || "Unable to delete this customer. Please try again.";
+    deleteCustomerError.classList.remove("d-none");
+  } finally {
+    confirmDeleteCustomerButton.disabled = false;
+    confirmDeleteCustomerButton.innerHTML = '<i class="bi bi-trash3 me-1" aria-hidden="true"></i> Delete Customer';
+  }
+});
+
+deleteCustomerModalElement.addEventListener("hidden.bs.modal", function () {
+  pendingDeleteCustomerId = "";
+  deleteCustomerError.textContent = "";
+  deleteCustomerError.classList.add("d-none");
+});
 
 /* ======================
    EDIT

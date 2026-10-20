@@ -365,6 +365,21 @@ a {
   color: #ffffff;
 }
 
+.row-status-select option[value="Pending Check"] {
+  background-color: #151a23;
+  color: #fbbf24;
+}
+
+.row-status-select option[value="Checked, Not Ordered"] {
+  background-color: #151a23;
+  color: #93c5fd;
+}
+
+.row-status-select option[value="Checked, Ordered"] {
+  background-color: #151a23;
+  color: #86efac;
+}
+
 /* Actions */
 .action-btn {
   border: none;
@@ -398,6 +413,57 @@ a {
   border: 1px solid #2a2a2a;
   border-radius: 18px;
   color: #ffffff;
+}
+
+.usage-delete-modal {
+  overflow: hidden;
+  border: 1px solid rgba(248, 113, 113, 0.3);
+  border-radius: 22px;
+  color: #f8fafc;
+  background: radial-gradient(circle at top right, rgba(239, 68, 68, 0.12), transparent 38%), linear-gradient(145deg, #1b2432, #171923 74%);
+  box-shadow: 0 28px 80px rgba(0, 0, 0, 0.48);
+}
+.usage-delete-modal .modal-body { padding: 26px 28px 28px; }
+.usage-delete-icon {
+  display: grid;
+  place-items: center;
+  width: 54px;
+  height: 54px;
+  margin: 26px 28px 0;
+  border: 1px solid rgba(248, 113, 113, 0.26);
+  border-radius: 17px;
+  color: #f87171;
+  background: rgba(239, 68, 68, 0.13);
+  font-size: 23px;
+}
+.usage-delete-modal h4 { margin: 0 0 8px; font-weight: 700; }
+.usage-delete-description { margin: 0 0 20px; color: #aab3c2; }
+.usage-delete-preview {
+  display: grid;
+  gap: 7px;
+  padding: 15px 16px;
+  border: 1px solid rgba(148, 163, 184, 0.17);
+  border-radius: 14px;
+  background: rgba(8, 13, 22, 0.48);
+}
+.usage-delete-preview strong { color: #fff; }
+.usage-delete-preview span { color: #cbd5e1; overflow-wrap: anywhere; }
+.usage-delete-preview small { color: #94a3b8; }
+.usage-delete-status { width: fit-content; padding: 4px 10px; border-radius: 999px; font-size: 0.84rem; font-weight: 650; }
+.usage-delete-status.pending { background: rgba(245, 158, 11, 0.13); color: #fbbf24; }
+.usage-delete-status.not-ordered { background: rgba(96, 165, 250, 0.13); color: #93c5fd; }
+.usage-delete-status.ordered { background: rgba(34, 197, 94, 0.13); color: #86efac; }
+.usage-delete-error { margin-top: 14px; color: #f87171; font-size: 0.92rem; }
+.usage-delete-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 24px; }
+.usage-delete-cancel { border: 1px solid #647084; color: #e2e8f0; }
+.usage-delete-cancel:hover { color: #fff; background: rgba(148, 163, 184, 0.12); }
+.usage-delete-confirm { border: 1px solid #ef4444; color: #fff; background: linear-gradient(135deg, #ef4444, #c62838); font-weight: 650; }
+.usage-delete-confirm:hover { color: #fff; background: linear-gradient(135deg, #f05252, #dc3545); }
+.usage-delete-confirm:disabled { opacity: 0.7; }
+
+@media (max-width: 575.98px) {
+  .usage-delete-modal .modal-body { padding: 22px; }
+  .usage-delete-icon { margin: 22px 22px 0; }
 }
 
 .modal-header-custom {
@@ -499,9 +565,7 @@ a {
   padding: 8px;
   border: 1px solid rgba(244, 114, 182, 0.42);
   border-radius: 14px;
-  background:
-    linear-gradient(135deg, rgba(244, 114, 182, 0.18), transparent 32%),
-    linear-gradient(180deg, rgba(58, 24, 46, 0.99), rgba(15, 19, 34, 0.99));
+  background: #151a23;
   box-shadow: 0 20px 42px rgba(0, 0, 0, 0.52), 0 0 0 1px rgba(255, 255, 255, 0.05) inset;
 }
 
@@ -518,6 +582,10 @@ a {
   letter-spacing: 0.01em;
 }
 
+.usage-status-option.pending { color: #fbbf24; }
+.usage-status-option.not-ordered { color: #93c5fd; }
+.usage-status-option.ordered { color: #86efac; }
+
 .usage-status-option:hover,
 .usage-status-option:focus {
   outline: none;
@@ -526,21 +594,24 @@ a {
 .usage-status-option.pending:hover,
 .usage-status-option.pending:focus,
 .usage-status-option.pending.active {
-  background-color: rgba(245, 158, 11, 0.2);
+  background: rgba(245, 158, 11, 0.12);
+  box-shadow: 0 0 0 1px rgba(245, 158, 11, 0.18) inset;
   color: #fbbf24;
 }
 
 .usage-status-option.not-ordered:hover,
 .usage-status-option.not-ordered:focus,
 .usage-status-option.not-ordered.active {
-  background-color: rgba(96, 165, 250, 0.2);
+  background: rgba(96, 165, 250, 0.12);
+  box-shadow: 0 0 0 1px rgba(96, 165, 250, 0.18) inset;
   color: #93c5fd;
 }
 
 .usage-status-option.ordered:hover,
 .usage-status-option.ordered:focus,
 .usage-status-option.ordered.active {
-  background-color: rgba(34, 197, 94, 0.2);
+  background: rgba(34, 197, 94, 0.12);
+  box-shadow: 0 0 0 1px rgba(34, 197, 94, 0.18) inset;
   color: #86efac;
 }
 

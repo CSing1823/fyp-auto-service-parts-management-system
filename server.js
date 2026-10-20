@@ -180,6 +180,37 @@ function buildCustomerPayload(body) {
   return payload;
 }
 
+function validateCustomerName(customerName) {
+  const validName = /^[\p{L}\p{M}][\p{L}\p{M}\s'.’\-]*$/u.test(customerName);
+  const nameLetterCount = (customerName.match(/\p{L}/gu) || []).length;
+  if (!validName || nameLetterCount < 2 || customerName.length > 100) {
+    throw new Error("Customer name must contain at least 2 letters, and may include spaces, apostrophes, periods, or hyphens (up to 100 characters).");
+  }
+}
+
+function validateMalaysianPhoneNumber(phone) {
+  const digits = phone.replace(/\D/g, "");
+  const localDigits = digits.startsWith("60") ? `0${digits.slice(2)}` : digits;
+  if (!/^\+?[0-9][0-9\s()-]*$/.test(phone) || !/^0\d{8,10}$/.test(localDigits)) {
+    throw new Error("Enter a valid Malaysian phone number, such as 011 1234 5678 or +60 11 1234 5678.");
+  }
+}
+
+function validateCustomerFields(payload) {
+  validateCustomerName(payload.customerName);
+  validateMalaysianPhoneNumber(payload.phoneNumber);
+
+  const validModel = /^[\p{L}\p{M}\p{N}][\p{L}\p{M}\p{N}\s.'’()\/-]*$/u.test(payload.vehicleModel);
+  if (!validModel || payload.vehicleModel.length > 80) {
+    throw new Error("Vehicle model may contain letters, numbers, spaces, and common punctuation (up to 80 characters).");
+  }
+
+  const compactPlate = payload.carPlateNumber.replace(/[\s-]/g, "");
+  if (!/^[A-Z0-9 -]+$/i.test(payload.carPlateNumber) || compactPlate.length < 2 || compactPlate.length > 20) {
+    throw new Error("Car plate must use 2–20 letters or numbers. Spaces and hyphens are okay.");
+  }
+}
+
 async function migrateCustomerFields() {
   try {
     const customersCollection = mongoose.connection.collection(customersCollectionName);
@@ -675,6 +706,7 @@ app.post('/api/auth/reset-password', async (req, res) => {
 app.post('/api/customers', async (req, res) => {
   try {
     const payload = buildCustomerPayload(req.body);
+    validateCustomerFields(payload);
     const customersCollection = await getCustomersCollection();
     const result = await customersCollection.insertOne({
         customerName: payload.customerName,
@@ -739,6 +771,7 @@ app.put('/api/customers/:id', async (req, res) => {
   try {
     const id = req.params.id;
     const payload = buildCustomerPayload(req.body);
+    validateCustomerFields(payload);
 
     if (!ObjectId.isValid(id)) {
       return res.status(400).send("Invalid customer id");
@@ -915,6 +948,9 @@ function buildEnquiryPayload(body) {
   if (!payload.date || !payload.customerName || !payload.phoneNumber || !payload.itemsEnquired || !payload.followUpDate) {
     throw new Error("Missing required enquiry fields");
   }
+
+  validateCustomerName(payload.customerName);
+  validateMalaysianPhoneNumber(payload.phoneNumber);
 
   if (!enquiryStatuses.includes(payload.status)) {
     throw new Error("Invalid enquiry status");

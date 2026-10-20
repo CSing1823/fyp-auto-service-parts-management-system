@@ -26,6 +26,13 @@ const usageForm = document.getElementById("usageForm");
 const usageTableBody = document.getElementById("usageTableBody");
 const usageSearchInput = document.getElementById("usageSearchInput");
 const usageModalElement = document.getElementById("usageModal");
+const deleteUsageModalElement = document.getElementById("deleteUsageModal");
+const deleteUsagePartName = document.getElementById("deleteUsagePartName");
+const deleteUsagePartDetails = document.getElementById("deleteUsagePartDetails");
+const deleteUsageMeta = document.getElementById("deleteUsageMeta");
+const deleteUsageStatus = document.getElementById("deleteUsageStatus");
+const deleteUsageError = document.getElementById("deleteUsageError");
+const confirmDeleteUsageButton = document.getElementById("confirmDeleteUsage");
 const usageModalTitle = document.getElementById("usageModalTitle");
 const usageSubmitBtn = document.getElementById("usageSubmitBtn");
 const addUsageBtn = document.querySelector(".add-btn");
@@ -43,6 +50,7 @@ const usageStatusToggle = document.getElementById("usageStatusToggle");
 
 let usageLogs = [];
 let activeStatusFilter = "All";
+let pendingDeleteUsageId = "";
 
 function escapeHtml(value) {
   return String(value || "")
@@ -269,6 +277,36 @@ async function deleteLogFromApi(id) {
   }
 }
 
+confirmDeleteUsageButton.addEventListener("click", async function () {
+  if (!pendingDeleteUsageId) return;
+
+  const id = pendingDeleteUsageId;
+  confirmDeleteUsageButton.disabled = true;
+  confirmDeleteUsageButton.innerHTML = '<span class="spinner-border spinner-border-sm me-2" aria-hidden="true"></span>Deleting';
+  deleteUsageError.hidden = true;
+
+  try {
+    const deleted = await deleteLogFromApi(id);
+    if (!deleted) throw new Error("The usage record could not be deleted. Please try again.");
+
+    usageLogs = usageLogs.filter((log) => log.id !== id);
+    saveStoredLogs(usageLogs);
+    renderUsageLogs();
+    bootstrap.Modal.getOrCreateInstance(deleteUsageModalElement).hide();
+  } catch (err) {
+    deleteUsageError.textContent = err.message || "The usage record could not be deleted. Please try again.";
+    deleteUsageError.hidden = false;
+  } finally {
+    confirmDeleteUsageButton.disabled = false;
+    confirmDeleteUsageButton.textContent = "Delete Record";
+  }
+});
+
+deleteUsageModalElement.addEventListener("hidden.bs.modal", function () {
+  pendingDeleteUsageId = "";
+  deleteUsageError.hidden = true;
+});
+
 usageForm.addEventListener("submit", async function (e) {
   e.preventDefault();
 
@@ -338,14 +376,19 @@ function bindActionButtons() {
   });
 
   document.querySelectorAll(".action-btn.delete").forEach((btn) => {
-    btn.addEventListener("click", async function () {
+    btn.addEventListener("click", function () {
       const id = this.dataset.id;
-      if (!confirm("Delete this usage record?")) return;
+      const log = usageLogs.find((item) => item.id === id);
+      if (!log) return;
 
-      await deleteLogFromApi(id);
-      usageLogs = usageLogs.filter((log) => log.id !== id);
-      saveStoredLogs(usageLogs);
-      renderUsageLogs();
+      pendingDeleteUsageId = id;
+      deleteUsagePartName.textContent = log.partName || "Unnamed part";
+      deleteUsagePartDetails.textContent = `${log.partCode || "No part code"} · Quantity used: ${log.qtyUsed ?? "—"}`;
+      deleteUsageMeta.textContent = `Usage date: ${log.date || "—"}`;
+      deleteUsageStatus.textContent = log.status || "Status not recorded";
+      deleteUsageStatus.className = `usage-delete-status ${getStatusClass(log.status)}`;
+      deleteUsageError.hidden = true;
+      bootstrap.Modal.getOrCreateInstance(deleteUsageModalElement).show();
     });
   });
 

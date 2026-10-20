@@ -17,6 +17,12 @@ if (menuToggle && sidebar && sidebarOverlay) {
 const serviceRecordForm = document.getElementById("serviceRecordForm");
 const serviceRecordModalElement = document.getElementById("serviceRecordModal");
 const vehicleHistoryModalElement = document.getElementById("vehicleHistoryModal");
+const deleteServiceRecordModalElement = document.getElementById("deleteServiceRecordModal");
+const deleteServiceRecordCustomer = document.getElementById("deleteServiceRecordCustomer");
+const deleteServiceRecordVehicle = document.getElementById("deleteServiceRecordVehicle");
+const deleteServiceRecordDetails = document.getElementById("deleteServiceRecordDetails");
+const deleteServiceRecordError = document.getElementById("deleteServiceRecordError");
+const confirmDeleteServiceRecordButton = document.getElementById("confirmDeleteServiceRecordBtn");
 const vehicleSearchInput = document.getElementById("vehicleSearchInput");
 const vehicleCardsContainer = document.getElementById("vehicleCardsContainer");
 const trackedVehiclesCount = document.getElementById("trackedVehiclesCount");
@@ -56,6 +62,7 @@ const vehicleBrandInput = document.getElementById("vehicleBrand");
 const CUSTOMER_API_URL = "http://localhost:3000/api/customers";
 let oilServiceRecords = [];
 let customers = [];
+let pendingDeleteServiceRecordId = "";
 const oilServicePackageNames = Object.keys(OIL_SERVICE_PACKAGES);
 
 function formatMileage(value) {
@@ -509,11 +516,11 @@ function renderVehicleHistory(plateNumber) {
       </div>
 
       <div class="history-actions">
-        <button class="btn secondary-btn history-edit-btn" data-id="${escapeHtml(record.id)}">
-          Edit Record
+        <button type="button" class="btn secondary-btn history-edit-btn" data-id="${escapeHtml(record.id)}">
+          <i class="bi bi-pencil-square me-2" aria-hidden="true"></i>Edit Record
         </button>
-        <button class="btn secondary-btn history-delete-btn" data-id="${escapeHtml(record.id)}">
-          Delete Record
+        <button type="button" class="btn secondary-btn history-delete-btn" data-id="${escapeHtml(record.id)}">
+          <i class="bi bi-trash3 me-2" aria-hidden="true"></i>Delete Record
         </button>
       </div>
     </div>
@@ -580,31 +587,73 @@ function bindHistoryActions() {
   });
 
   document.querySelectorAll(".history-delete-btn").forEach((btn) => {
-    btn.addEventListener("click", async function () {
+    btn.addEventListener("click", function () {
       const id = this.dataset.id;
       const recordToDelete = oilServiceRecords.find((item) => item.id === id);
-      if (!confirm("Delete this service record?")) return;
+      if (!recordToDelete) return;
 
-      await deleteOilServiceRecordFromApi(id);
-      oilServiceRecords = oilServiceRecords.filter((record) => record.id !== id);
-      saveOilServiceRecordsToStorage(oilServiceRecords);
-      renderVehicleCards();
-
-      if (!recordToDelete) {
-        return;
-      }
-
-      const remainingHistory = getVehicleHistory(oilServiceRecords, recordToDelete.vehiclePlateNumber);
-      if (remainingHistory.length === 0) {
-        const historyModal = bootstrap.Modal.getInstance(vehicleHistoryModalElement);
-        if (historyModal) historyModal.hide();
-        return;
-      }
-
-      renderVehicleHistory(recordToDelete.vehiclePlateNumber);
+      pendingDeleteServiceRecordId = id;
+      deleteServiceRecordCustomer.textContent = recordToDelete.customerName || "Customer not recorded";
+      deleteServiceRecordVehicle.textContent = [
+        recordToDelete.vehicleBrand,
+        recordToDelete.vehicleModel,
+        recordToDelete.vehiclePlateNumber
+      ].filter(Boolean).join(" · ");
+      deleteServiceRecordDetails.textContent = [
+        recordToDelete.oilServicePackage,
+        recordToDelete.serviceDate ? `Service date: ${recordToDelete.serviceDate}` : ""
+      ].filter(Boolean).join(" · ");
+      deleteServiceRecordError.textContent = "";
+      deleteServiceRecordError.classList.add("d-none");
+      bootstrap.Modal.getOrCreateInstance(deleteServiceRecordModalElement).show();
     });
   });
 }
+
+confirmDeleteServiceRecordButton.addEventListener("click", async function () {
+  if (!pendingDeleteServiceRecordId) return;
+
+  const recordToDelete = oilServiceRecords.find((item) => item.id === pendingDeleteServiceRecordId);
+  if (!recordToDelete) return;
+
+  confirmDeleteServiceRecordButton.disabled = true;
+  confirmDeleteServiceRecordButton.innerHTML = '<span class="spinner-border spinner-border-sm me-2" aria-hidden="true"></span>Deleting...';
+
+  try {
+    const deleted = await deleteOilServiceRecordFromApi(pendingDeleteServiceRecordId);
+    if (!deleted) throw new Error("Unable to delete this service record. Please try again.");
+
+    oilServiceRecords = oilServiceRecords.filter((record) => record.id !== pendingDeleteServiceRecordId);
+    saveOilServiceRecordsToStorage(oilServiceRecords);
+    renderVehicleCards();
+
+    await new Promise((resolve) => {
+      deleteServiceRecordModalElement.addEventListener("hidden.bs.modal", resolve, { once: true });
+      bootstrap.Modal.getInstance(deleteServiceRecordModalElement).hide();
+    });
+
+    const remainingHistory = getVehicleHistory(oilServiceRecords, recordToDelete.vehiclePlateNumber);
+    if (remainingHistory.length === 0) {
+      const historyModal = bootstrap.Modal.getInstance(vehicleHistoryModalElement);
+      if (historyModal) historyModal.hide();
+    } else {
+      renderVehicleHistory(recordToDelete.vehiclePlateNumber);
+    }
+  } catch (err) {
+    console.error(err);
+    deleteServiceRecordError.textContent = err.message || "Unable to delete this service record. Please try again.";
+    deleteServiceRecordError.classList.remove("d-none");
+  } finally {
+    confirmDeleteServiceRecordButton.disabled = false;
+    confirmDeleteServiceRecordButton.innerHTML = '<i class="bi bi-trash3 me-1" aria-hidden="true"></i> Delete Record';
+  }
+});
+
+deleteServiceRecordModalElement.addEventListener("hidden.bs.modal", function () {
+  pendingDeleteServiceRecordId = "";
+  deleteServiceRecordError.textContent = "";
+  deleteServiceRecordError.classList.add("d-none");
+});
 
 serviceRecordForm.addEventListener("submit", async function (e) {
   e.preventDefault();

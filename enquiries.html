@@ -161,43 +161,49 @@
       </div>
 
       <div class="modal-body">
-        <form id="enquiryForm">
+        <form id="enquiryForm" novalidate>
           <input type="hidden" id="enquiryRecordId">
 
           <div class="mb-3">
             <label for="enquiryDate" class="form-label modal-label">Date</label>
-            <input type="date" class="form-control modal-input" id="enquiryDate" required>
+            <input type="date" class="form-control modal-input" id="enquiryDate" required aria-describedby="enquiryDateError">
+            <div id="enquiryDateError" class="invalid-feedback"></div>
           </div>
 
           <div class="mb-3">
             <label for="customerName" class="form-label modal-label">Customer Name</label>
-            <input type="text" class="form-control modal-input" id="customerName" required>
+            <input type="text" class="form-control modal-input" id="customerName" minlength="2" maxlength="100" required aria-describedby="enquiryCustomerNameError">
+            <div id="enquiryCustomerNameError" class="invalid-feedback"></div>
           </div>
 
           <div class="mb-3">
             <label for="phoneNumber" class="form-label modal-label">Phone Number</label>
-            <input type="text" class="form-control modal-input" id="phoneNumber" required>
+            <input type="tel" class="form-control modal-input" id="phoneNumber" maxlength="20" autocomplete="tel" required aria-describedby="enquiryPhoneNumberError">
+            <div id="enquiryPhoneNumberError" class="invalid-feedback"></div>
           </div>
 
           <div class="mb-3">
             <label for="itemsEnquired" class="form-label modal-label">Items Enquired</label>
-            <textarea class="form-control modal-input" id="itemsEnquired" rows="3" required></textarea>
+            <textarea class="form-control modal-input" id="itemsEnquired" rows="3" required aria-describedby="itemsEnquiredError"></textarea>
+            <div id="itemsEnquiredError" class="invalid-feedback"></div>
           </div>
 
           <div class="mb-3">
             <label for="followUpDate" class="form-label modal-label">Follow-up Date</label>
-            <input type="date" class="form-control modal-input" id="followUpDate" required>
+            <input type="date" class="form-control modal-input" id="followUpDate" required aria-describedby="followUpDateError">
+            <div id="followUpDateError" class="invalid-feedback"></div>
           </div>
 
           <div class="mb-4">
             <label for="enquiryStatus" class="form-label modal-label">Status</label>
             <div class="enquiry-status-combobox" id="enquiryStatusCombobox">
-              <input type="text" class="form-control modal-input enquiry-status-input" id="enquiryStatus" value="Pending" autocomplete="off" readonly required role="combobox" aria-expanded="false" aria-controls="enquiryStatusOptions">
+              <input type="text" class="form-control modal-input enquiry-status-input" id="enquiryStatus" value="Pending" autocomplete="off" readonly required role="combobox" aria-expanded="false" aria-controls="enquiryStatusOptions" aria-describedby="enquiryStatusError">
               <button type="button" class="enquiry-status-dropdown-btn" id="enquiryStatusToggle" aria-label="Show enquiry statuses">
                 <i class="bi bi-chevron-down"></i>
               </button>
               <div class="enquiry-status-options d-none" id="enquiryStatusOptions" role="listbox"></div>
             </div>
+            <div id="enquiryStatusError" class="invalid-feedback d-none"></div>
           </div>
 
           <div class="d-flex justify-content-end gap-2">
@@ -221,6 +227,28 @@
         <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
       </div>
       <div class="modal-body" id="viewEnquiryBody"></div>
+    </div>
+  </div>
+</div>
+
+<div class="modal fade" id="deleteEnquiryModal" tabindex="-1" aria-labelledby="deleteEnquiryTitle" aria-describedby="deleteEnquiryDescription" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content enquiry-delete-modal">
+      <div class="enquiry-delete-icon"><i class="bi bi-trash3" aria-hidden="true"></i></div>
+      <div class="modal-body">
+        <h4 id="deleteEnquiryTitle">Delete this enquiry?</h4>
+        <p id="deleteEnquiryDescription" class="enquiry-delete-description">This enquiry will be permanently removed from your records.</p>
+        <div class="enquiry-delete-preview">
+          <strong id="deleteEnquiryCustomer"></strong>
+          <span id="deleteEnquiryItems"></span>
+          <small id="deleteEnquiryMeta"></small>
+        </div>
+        <div class="enquiry-delete-error" id="deleteEnquiryError" role="alert" hidden></div>
+        <div class="enquiry-delete-actions">
+          <button type="button" class="btn enquiry-delete-cancel" data-bs-dismiss="modal">Cancel</button>
+          <button type="button" class="btn enquiry-delete-confirm" id="confirmDeleteEnquiry">Delete Enquiry</button>
+        </div>
+      </div>
     </div>
   </div>
 </div>

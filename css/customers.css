@@ -360,6 +360,95 @@ a {
   border-radius: 20px;
 }
 
+.delete-confirm-modal {
+  overflow: hidden;
+  color: #f9fafb;
+  background: linear-gradient(145deg, #1b2432, #171923 72%);
+  border: 1px solid rgba(248, 113, 113, 0.22);
+  border-radius: 22px;
+  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.5);
+}
+
+.delete-confirm-body {
+  padding: 30px 30px 20px;
+  text-align: center;
+}
+
+.delete-confirm-icon {
+  display: grid;
+  width: 62px;
+  height: 62px;
+  margin: 0 auto 18px;
+  place-items: center;
+  color: #fca5a5;
+  background: rgba(239, 68, 68, 0.14);
+  border: 1px solid rgba(248, 113, 113, 0.24);
+  border-radius: 18px;
+  font-size: 25px;
+}
+
+.delete-confirm-body h4 {
+  margin-bottom: 8px;
+  font-weight: 700;
+}
+
+.delete-confirm-body > p {
+  margin-bottom: 18px;
+}
+
+.delete-customer-summary {
+  display: grid;
+  gap: 5px;
+  padding: 14px 16px;
+  color: #f9fafb;
+  text-align: left;
+  background: rgba(255, 255, 255, 0.045);
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  border-radius: 14px;
+  overflow-wrap: anywhere;
+}
+
+.delete-customer-summary span {
+  color: #9ca3af;
+  font-size: 0.9rem;
+}
+
+.delete-confirm-body .delete-confirm-note {
+  margin: 14px 0 0;
+  color: #fca5a5;
+  font-size: 0.85rem;
+}
+
+.delete-confirm-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  padding: 16px 24px 22px;
+  border-top: 1px solid rgba(255, 255, 255, 0.07);
+}
+
+.delete-confirm-actions .btn-danger {
+  color: #fff;
+  background: #dc3545;
+  border-color: #dc3545;
+  font-weight: 600;
+}
+
+.delete-confirm-actions .btn-danger:hover {
+  background: #bb2d3b;
+  border-color: #b02a37;
+}
+
+@media (max-width: 480px) {
+  .delete-confirm-body {
+    padding: 24px 20px 18px;
+  }
+
+  .delete-confirm-actions {
+    padding: 14px 18px 18px;
+  }
+}
+
 .modal-header-custom {
   border-bottom: 1px solid #2a2a2a;
 }
@@ -413,6 +502,15 @@ a {
     linear-gradient(135deg, rgba(91, 33, 182, 0.28), rgba(15, 23, 42, 0.98));
   border-color: #a78bfa;
   box-shadow: 0 0 0 3px rgba(167, 139, 250, 0.18), 0 0 24px rgba(167, 139, 250, 0.12);
+}
+
+.brand-search-input.is-invalid,
+.brand-search-input.is-invalid:focus {
+  background:
+    linear-gradient(135deg, rgba(167, 139, 250, 0.22), transparent 36%),
+    linear-gradient(135deg, rgba(91, 33, 182, 0.22), rgba(15, 23, 42, 0.98));
+  border-color: #dc3545;
+  box-shadow: 0 0 0 3px rgba(220, 53, 69, 0.18);
 }
 
 .brand-dropdown-btn {

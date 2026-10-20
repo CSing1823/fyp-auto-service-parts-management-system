@@ -351,6 +351,55 @@ a {
   color: #ffffff;
 }
 
+.enquiry-delete-modal {
+  position: relative;
+  overflow: hidden;
+  border: 1px solid rgba(248, 113, 113, 0.3);
+  border-radius: 22px;
+  color: #f8fafc;
+  background: radial-gradient(circle at top right, rgba(239, 68, 68, 0.12), transparent 38%), linear-gradient(145deg, #1b2432, #171923 74%);
+  box-shadow: 0 28px 80px rgba(0, 0, 0, 0.48);
+}
+
+.enquiry-delete-modal .modal-body { padding: 28px; }
+.enquiry-delete-icon {
+  display: grid;
+  place-items: center;
+  width: 54px;
+  height: 54px;
+  margin: 26px 28px 0;
+  border: 1px solid rgba(248, 113, 113, 0.26);
+  border-radius: 17px;
+  color: #f87171;
+  background: rgba(239, 68, 68, 0.13);
+  font-size: 23px;
+}
+.enquiry-delete-modal h4 { margin: 0 0 8px; font-weight: 700; }
+.enquiry-delete-description { margin: 0 0 20px; color: #aab3c2; }
+.enquiry-delete-preview {
+  display: grid;
+  gap: 6px;
+  padding: 15px 16px;
+  border: 1px solid rgba(148, 163, 184, 0.17);
+  border-radius: 14px;
+  background: rgba(8, 13, 22, 0.48);
+}
+.enquiry-delete-preview strong { color: #fff; }
+.enquiry-delete-preview span { color: #cbd5e1; overflow-wrap: anywhere; }
+.enquiry-delete-preview small { color: #94a3b8; }
+.enquiry-delete-error { margin-top: 14px; color: #f87171; font-size: 0.92rem; }
+.enquiry-delete-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 24px; }
+.enquiry-delete-cancel { border: 1px solid #647084; color: #e2e8f0; }
+.enquiry-delete-cancel:hover { color: #fff; background: rgba(148, 163, 184, 0.12); }
+.enquiry-delete-confirm { border: 1px solid #ef4444; color: #fff; background: linear-gradient(135deg, #ef4444, #c62838); font-weight: 650; }
+.enquiry-delete-confirm:hover { color: #fff; background: linear-gradient(135deg, #f05252, #dc3545); }
+.enquiry-delete-confirm:disabled { opacity: 0.7; }
+
+@media (max-width: 575.98px) {
+  .enquiry-delete-modal .modal-body { padding: 22px; }
+  .enquiry-delete-icon { margin: 22px 22px 0; }
+}
+
 .modal-header-custom {
   border-bottom: 1px solid #2a2a2a;
   padding: 22px 24px;
@@ -408,6 +457,15 @@ a {
     linear-gradient(135deg, rgba(14, 165, 233, 0.26), rgba(15, 23, 42, 0.98));
   border-color: #7dd3fc;
   box-shadow: 0 0 0 3px rgba(125, 211, 252, 0.18), 0 0 24px rgba(56, 189, 248, 0.12);
+}
+
+.enquiry-status-input.is-invalid,
+.enquiry-status-input.is-invalid:focus {
+  background:
+    linear-gradient(135deg, rgba(96, 165, 250, 0.22), transparent 34%),
+    linear-gradient(135deg, rgba(14, 165, 233, 0.2), rgba(15, 23, 42, 0.98));
+  border-color: #dc3545;
+  box-shadow: 0 0 0 3px rgba(220, 53, 69, 0.18);
 }
 
 .enquiry-status-dropdown-btn {

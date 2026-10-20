@@ -24,6 +24,12 @@ const enquirySearchInput = document.getElementById("enquirySearchInput");
 const enquiryModalElement = document.getElementById("enquiryModal");
 const viewEnquiryModalElement = document.getElementById("viewEnquiryModal");
 const viewEnquiryBody = document.getElementById("viewEnquiryBody");
+const deleteEnquiryModalElement = document.getElementById("deleteEnquiryModal");
+const deleteEnquiryCustomer = document.getElementById("deleteEnquiryCustomer");
+const deleteEnquiryItems = document.getElementById("deleteEnquiryItems");
+const deleteEnquiryMeta = document.getElementById("deleteEnquiryMeta");
+const deleteEnquiryError = document.getElementById("deleteEnquiryError");
+const confirmDeleteEnquiryButton = document.getElementById("confirmDeleteEnquiry");
 const enquiryModalTitle = document.getElementById("enquiryModalTitle");
 const enquirySubmitBtn = document.getElementById("enquirySubmitBtn");
 const addEnquiryBtn = document.querySelector(".add-btn");
@@ -31,17 +37,97 @@ const filterButtons = document.querySelectorAll(".filter-btn");
 
 const enquiryRecordIdInput = document.getElementById("enquiryRecordId");
 const enquiryDateInput = document.getElementById("enquiryDate");
+const enquiryDateError = document.getElementById("enquiryDateError");
 const customerNameInput = document.getElementById("customerName");
 const phoneNumberInput = document.getElementById("phoneNumber");
+const enquiryCustomerNameError = document.getElementById("enquiryCustomerNameError");
+const enquiryPhoneNumberError = document.getElementById("enquiryPhoneNumberError");
 const itemsEnquiredInput = document.getElementById("itemsEnquired");
+const itemsEnquiredError = document.getElementById("itemsEnquiredError");
 const followUpDateInput = document.getElementById("followUpDate");
+const followUpDateError = document.getElementById("followUpDateError");
 const enquiryStatusInput = document.getElementById("enquiryStatus");
+const enquiryStatusError = document.getElementById("enquiryStatusError");
 const enquiryStatusCombobox = document.getElementById("enquiryStatusCombobox");
 const enquiryStatusOptions = document.getElementById("enquiryStatusOptions");
 const enquiryStatusToggle = document.getElementById("enquiryStatusToggle");
 
 let enquiries = [];
 let activeStatusFilter = "All";
+let pendingDeleteEnquiryId = "";
+
+const enquiryFieldRules = [
+  {
+    input: enquiryDateInput,
+    message: enquiryDateError,
+    validate(value) {
+      return value ? "" : "Select the enquiry date.";
+    }
+  },
+  {
+    input: customerNameInput,
+    message: enquiryCustomerNameError,
+    validate(value) {
+      if (!value) return "Enter the customer's name.";
+      const letterCount = (value.match(/\p{L}/gu) || []).length;
+      if (letterCount < 2 || value.length > 100 || !/^[\p{L}\p{M}][\p{L}\p{M}\s'.’\-]*$/u.test(value)) {
+        return "Enter a name with at least 2 letters. You may use spaces, apostrophes, periods, or hyphens (up to 100 characters).";
+      }
+      return "";
+    }
+  },
+  {
+    input: phoneNumberInput,
+    message: enquiryPhoneNumberError,
+    validate(value) {
+      if (!value) return "Enter a phone number.";
+      const digits = value.replace(/\D/g, "");
+      const localDigits = digits.startsWith("60") ? `0${digits.slice(2)}` : digits;
+      if (!/^\+?[0-9][0-9\s()-]*$/.test(value) || !/^0\d{8,10}$/.test(localDigits)) {
+        return "Enter a valid Malaysian number, such as 011 1234 5678 or +60 11 1234 5678.";
+      }
+      return "";
+    }
+  },
+  {
+    input: itemsEnquiredInput,
+    message: itemsEnquiredError,
+    validate(value) {
+      return value ? "" : "Enter the item or service the customer enquired about.";
+    }
+  },
+  {
+    input: followUpDateInput,
+    message: followUpDateError,
+    validate(value) {
+      return value ? "" : "Select a follow-up date.";
+    }
+  },
+  {
+    input: enquiryStatusInput,
+    message: enquiryStatusError,
+    validate(value) {
+      return statusOptions.includes(value) ? "" : "Select an enquiry status.";
+    }
+  }
+];
+
+function validateEnquiryField(field) {
+  const error = field.validate(field.input.value.trim());
+  field.input.classList.toggle("is-invalid", Boolean(error));
+  field.input.setAttribute("aria-invalid", String(Boolean(error)));
+  field.message.textContent = error;
+  field.message.classList.toggle("d-none", !error);
+  field.message.classList.toggle("d-block", Boolean(error));
+  return !error;
+}
+
+enquiryFieldRules.forEach((field) => {
+  field.input.addEventListener("blur", () => validateEnquiryField(field));
+  field.input.addEventListener("input", () => {
+    if (field.input.classList.contains("is-invalid")) validateEnquiryField(field);
+  });
+});
 
 function escapeHtml(value) {
   return String(value || "")
@@ -167,6 +253,8 @@ function closeEnquiryStatusOptions() {
 function selectEnquiryStatus(status) {
   enquiryStatusInput.value = status;
   closeEnquiryStatusOptions();
+  const statusRule = enquiryFieldRules.find((field) => field.input === enquiryStatusInput);
+  validateEnquiryField(statusRule);
 }
 
 function getVisibleEnquiries() {
@@ -239,6 +327,13 @@ function resetEnquiryForm() {
   enquiryStatusInput.value = "Pending";
   enquiryModalTitle.textContent = "Add Enquiry";
   enquirySubmitBtn.textContent = "Add Enquiry";
+  enquiryFieldRules.forEach((field) => {
+    field.input.classList.remove("is-invalid");
+    field.input.setAttribute("aria-invalid", "false");
+    field.message.textContent = "";
+    field.message.classList.add("d-none");
+    field.message.classList.remove("d-block");
+  });
 }
 
 function getFormData() {
@@ -277,14 +372,45 @@ async function deleteEnquiryFromApi(id) {
   }
 }
 
+confirmDeleteEnquiryButton.addEventListener("click", async function () {
+  if (!pendingDeleteEnquiryId) return;
+
+  const id = pendingDeleteEnquiryId;
+  confirmDeleteEnquiryButton.disabled = true;
+  confirmDeleteEnquiryButton.innerHTML = '<span class="spinner-border spinner-border-sm me-2" aria-hidden="true"></span>Deleting';
+  deleteEnquiryError.hidden = true;
+
+  try {
+    const deleted = await deleteEnquiryFromApi(id);
+    if (!deleted) throw new Error("The enquiry could not be deleted. Please try again.");
+
+    enquiries = enquiries.filter((enquiry) => enquiry.id !== id);
+    saveStoredEnquiries(enquiries);
+    renderEnquiries();
+    bootstrap.Modal.getOrCreateInstance(deleteEnquiryModalElement).hide();
+  } catch (err) {
+    deleteEnquiryError.textContent = err.message || "The enquiry could not be deleted. Please try again.";
+    deleteEnquiryError.hidden = false;
+  } finally {
+    confirmDeleteEnquiryButton.disabled = false;
+    confirmDeleteEnquiryButton.textContent = "Delete Enquiry";
+  }
+});
+
+deleteEnquiryModalElement.addEventListener("hidden.bs.modal", function () {
+  pendingDeleteEnquiryId = "";
+  deleteEnquiryError.hidden = true;
+});
+
 enquiryForm.addEventListener("submit", async function (e) {
   e.preventDefault();
 
   const formData = getFormData();
   const existingId = enquiryRecordIdInput.value;
 
-  if (!formData.date || !formData.customerName || !formData.phoneNumber || !formData.itemsEnquired || !formData.followUpDate) {
-    alert("Please fill in all enquiry details");
+  const invalidFields = enquiryFieldRules.filter((field) => !validateEnquiryField(field));
+  if (invalidFields.length > 0) {
+    invalidFields[0].input.focus();
     return;
   }
 
@@ -364,14 +490,17 @@ function bindActionButtons() {
   });
 
   document.querySelectorAll(".action-btn.delete").forEach((btn) => {
-    btn.addEventListener("click", async function () {
+    btn.addEventListener("click", function () {
       const id = this.dataset.id;
-      if (!confirm("Delete this customer enquiry?")) return;
+      const enquiry = enquiries.find((item) => item.id === id);
+      if (!enquiry) return;
 
-      await deleteEnquiryFromApi(id);
-      enquiries = enquiries.filter((enquiry) => enquiry.id !== id);
-      saveStoredEnquiries(enquiries);
-      renderEnquiries();
+      pendingDeleteEnquiryId = id;
+      deleteEnquiryCustomer.textContent = enquiry.customerName || "Unnamed customer";
+      deleteEnquiryItems.textContent = enquiry.itemsEnquired || "No enquiry item details";
+      deleteEnquiryMeta.textContent = `Enquiry date: ${enquiry.date || "—"} · Follow-up: ${enquiry.followUpDate || "—"}`;
+      deleteEnquiryError.hidden = true;
+      bootstrap.Modal.getOrCreateInstance(deleteEnquiryModalElement).show();
     });
   });
 

@@ -205,38 +205,46 @@
       </div>
 
       <div class="modal-body">
-        <form id="addCustomerForm">
+        <form id="addCustomerForm" novalidate>
           <input type="hidden" id="editRowIndex" value="">
+
+          <div id="customerFormError" class="alert alert-danger d-none" role="alert"></div>
 
           <div class="mb-3">
             <label for="customerName" class="form-label modal-label">Customer Name</label>
-            <input type="text" class="form-control modal-input" id="customerName" required>
+            <input type="text" class="form-control modal-input" id="customerName" minlength="2" maxlength="100" required aria-describedby="customerNameError">
+            <div id="customerNameError" class="invalid-feedback"></div>
           </div>
 
           <div class="mb-3">
             <label for="phoneNumber" class="form-label modal-label">Phone Number</label>
-            <input type="text" class="form-control modal-input" id="phoneNumber" required>
+            <input type="tel" class="form-control modal-input" id="phoneNumber" maxlength="20" autocomplete="tel" required aria-describedby="phoneNumberError">
+            <div id="phoneNumberError" class="invalid-feedback"></div>
           </div>
 
           <div class="mb-3">
             <label for="vehicleBrand" class="form-label modal-label">Vehicle Brand</label>
             <div class="brand-combobox" id="vehicleBrandCombobox">
-              <input type="text" class="form-control modal-input brand-search-input" id="vehicleBrand" placeholder="Search or select brand" autocomplete="off" required role="combobox" aria-expanded="false" aria-controls="vehicleBrandOptions">
+              <input type="text" class="form-control modal-input brand-search-input" id="vehicleBrand" placeholder="Search or select brand" autocomplete="off" required role="combobox" aria-expanded="false" aria-controls="vehicleBrandOptions" aria-describedby="vehicleBrandError">
               <button type="button" class="brand-dropdown-btn" id="vehicleBrandToggle" aria-label="Show vehicle brands">
                 <i class="bi bi-chevron-down"></i>
               </button>
               <div class="brand-options d-none" id="vehicleBrandOptions" role="listbox"></div>
             </div>
+            <div id="vehicleBrandError" class="invalid-feedback d-none"></div>
           </div>
 
           <div class="mb-3">
             <label for="vehicleModel" class="form-label modal-label">Vehicle Model</label>
-            <input type="text" class="form-control modal-input" id="vehicleModel" required>
+            <input type="text" class="form-control modal-input" id="vehicleModel" maxlength="80" required aria-describedby="vehicleModelError">
+            <div id="vehicleModelError" class="invalid-feedback"></div>
           </div>
 
           <div class="mb-4">
             <label for="carPlateNumber" class="form-label modal-label">Car Plate Number</label>
-            <input type="text" class="form-control modal-input" id="carPlateNumber" required>
+            <input type="text" class="form-control modal-input" id="carPlateNumber" maxlength="24" required aria-describedby="carPlateNumberHelp carPlateNumberError">
+            <div id="carPlateNumberHelp" class="form-text text-secondary-custom">Letters, numbers, spaces, and hyphens are accepted. Ask staff to verify unusual or special plates.</div>
+            <div id="carPlateNumberError" class="invalid-feedback"></div>
           </div>
 
           <div class="d-flex justify-content-end gap-2">
@@ -244,6 +252,32 @@
             <button type="submit" class="btn btn-warning" id="customerSubmitBtn">Add Customer</button>
           </div>
         </form>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="modal fade" id="deleteCustomerModal" tabindex="-1" aria-hidden="true" aria-labelledby="deleteCustomerTitle" aria-describedby="deleteCustomerDescription">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content delete-confirm-modal">
+      <div class="delete-confirm-body">
+        <div class="delete-confirm-icon" aria-hidden="true">
+          <i class="bi bi-trash3-fill"></i>
+        </div>
+        <h4 id="deleteCustomerTitle">Delete this customer?</h4>
+        <p id="deleteCustomerDescription" class="text-secondary-custom">This will remove the customer record from your database.</p>
+        <div class="delete-customer-summary">
+          <strong id="deleteCustomerName"></strong>
+          <span id="deleteCustomerVehicle"></span>
+        </div>
+        <p class="delete-confirm-note">This action cannot be undone.</p>
+        <div id="deleteCustomerError" class="alert alert-danger d-none mb-0" role="alert"></div>
+      </div>
+      <div class="delete-confirm-actions">
+        <button type="button" class="btn btn-outline-light" data-bs-dismiss="modal">Cancel</button>
+        <button type="button" class="btn btn-danger" id="confirmDeleteCustomerBtn">
+          <i class="bi bi-trash3 me-1" aria-hidden="true"></i> Delete Customer
+        </button>
       </div>
     </div>
   </div>
