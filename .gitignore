@@ -11,4 +11,6 @@ pnpm-debug.log*
 .DS_Store
 Thumbs.db
 
-.vscode/
+!.vscode/
+.vscode/*
+!.vscode/settings.json
