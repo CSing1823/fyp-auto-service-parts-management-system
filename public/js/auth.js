@@ -3,6 +3,9 @@ const API_ORIGIN = ["localhost", "127.0.0.1"].includes(window.location.hostname)
   ? "http://127.0.0.1:3000"
   : "";
 
+// Keep protected page content hidden until the server confirms the HttpOnly session.
+document.documentElement.style.visibility = "hidden";
+
 sessionStorage.removeItem(SESSION_KEY);
 localStorage.removeItem(SESSION_KEY);
 
@@ -22,7 +25,31 @@ async function validateBackendSession() {
   }
 }
 
-window.authSessionReady = validateBackendSession();
+window.authSessionReady = validateBackendSession().then((user) => {
+  if (user) {
+    document.documentElement.style.visibility = "";
+  } else {
+    redirectToLogin();
+  }
+  return user;
+});
+
+async function revalidateActiveSession() {
+  const user = await validateBackendSession();
+  if (!user) {
+    authenticatedUser = null;
+    window.authSessionReady = Promise.resolve(null);
+    redirectToLogin();
+  }
+}
+
+window.setInterval(() => {
+  if (!document.hidden) revalidateActiveSession();
+}, 60_000);
+
+document.addEventListener("visibilitychange", () => {
+  if (!document.hidden) revalidateActiveSession();
+});
 
 window.apiFetch = async function (url, options = {}) {
   const user = await window.authSessionReady;
@@ -44,6 +71,7 @@ window.apiFetch = async function (url, options = {}) {
 function redirectToLogin() {
   if (!authRedirectStarted && !window.location.pathname.endsWith("login.html")) {
     authRedirectStarted = true;
+    document.documentElement.style.visibility = "hidden";
     window.location.replace("login.html");
   }
 }

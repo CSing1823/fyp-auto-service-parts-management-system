@@ -711,7 +711,7 @@ app.post('/api/auth/login', requireSameOrigin, async (req, res) => {
       userAgent: String(req.get("user-agent") || "").slice(0, 500),
       ipAddress: req.ip
     });
-    res.cookie(sessionCookieName, rawSessionId, sessionCookieOptions(sessionDurationMs));
+    res.cookie(sessionCookieName, rawSessionId, sessionCookieOptions());
     res.json({ user: { id: staffUser._id, name: staffUser.name, email: staffUser.email, role: staffUser.role || "Staff" } });
   } catch (err) {
     console.error(err);
