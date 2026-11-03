@@ -17,13 +17,14 @@ Web-based workshop management system for customers, vehicles, enquiries, reminde
 
 2. Create a local `.env` file using `.env.example` as a guide.
 
-3. Start the server:
+3. Start the Express backend in a terminal:
 
    ```bash
    npm start
    ```
 
-4. Open the app from `index.html` or visit the local server routes used by the project.
+4. Open `public/index.html` with VS Code Live Server. The workspace Live Server setting serves `public/` at the frontend root on port `5501`.
+5. Leave the backend running separately on port `3000` while using the frontend.
 
 ## Staff User
 
