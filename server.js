@@ -106,11 +106,17 @@ const smtpPass = process.env.SMTP_PASS || "";
 const smtpFrom = process.env.SMTP_FROM || smtpUser;
 const moceanApiToken = process.env.MOCEAN_API_TOKEN || "";
 const moceanFrom = process.env.MOCEAN_FROM || "CHAIHUAH";
-const smsReminderCheckIntervalMs = Number(process.env.SMS_REMINDER_CHECK_INTERVAL_MS || 60 * 60 * 1000);
+const configuredSmsReminderIntervalMs = Number(process.env.SMS_REMINDER_CHECK_INTERVAL_MS || 60 * 60 * 1000);
+const smsReminderCheckIntervalMs = Number.isFinite(configuredSmsReminderIntervalMs) && configuredSmsReminderIntervalMs > 0
+  ? configuredSmsReminderIntervalMs
+  : 60 * 60 * 1000;
+const smsReminderRequestTimeoutMs = 8000;
+const smsReminderProcessingLeaseMs = 2 * 60 * 1000;
 const fixedPasswordResetEmail = normalizeEmail(
   process.env.PASSWORD_RESET_EMAIL || "chaihuahautoparts@gmail.com"
 );
 const mongoUri = process.env.MONGODB_URI;
+const isMigrationCommand = process.argv.includes("--run-migrations");
 const sessionCookieName = "fyp_staff_session";
 const resetCookieName = "fyp_password_reset";
 const sessionDurationMs = 8 * 60 * 60 * 1000;
@@ -118,6 +124,18 @@ const allowedFrontendOrigins = new Set(
   String(process.env.FRONTEND_ORIGINS || "http://127.0.0.1:5501,http://localhost:5501")
     .split(",").map((origin) => origin.trim()).filter(Boolean)
 );
+let localSmsReminderSchedulerStarted = false;
+let mongoReadyPromise = null;
+mongoose.connection.on("disconnected", () => {
+  mongoReadyPromise = null;
+});
+
+function constantTimeSecretMatches(providedSecret, configuredSecret) {
+  if (!providedSecret || !configuredSecret) return false;
+  const provided = Buffer.from(String(providedSecret));
+  const configured = Buffer.from(String(configuredSecret));
+  return provided.length === configured.length && crypto.timingSafeEqual(provided, configured);
+}
 
 function normalizeEmail(email) {
   return String(email || "").trim().toLowerCase();
@@ -253,7 +271,7 @@ async function migrateCustomerFields() {
       console.log(`Migrated ${updates.length} customer field records`);
     }
   } catch (err) {
-    console.error("Customer field migration failed:", err.message);
+    throw err;
   }
 }
 
@@ -288,7 +306,7 @@ async function migrateCustomersCollectionName() {
     );
     console.log(`Synced ${oldCustomers.length} customer records into ${customersCollectionName}`);
   } catch (err) {
-    console.error("Customers collection rename migration failed:", err.message);
+    throw err;
   }
 }
 
@@ -333,7 +351,7 @@ async function migrateOilServiceRecordsCollection() {
     await vehiclesServicesCollection.bulkWrite(updates);
     console.log(`Synced ${updates.length} oil service records into ${vehiclesServicesCollectionName}`);
   } catch (err) {
-    console.error("Vehicles & Services collection migration failed:", err.message);
+    throw err;
   }
 }
 
@@ -368,7 +386,7 @@ async function migrateInventoryUsageCollectionName() {
     );
     console.log(`Synced ${legacyRecords.length} parts usage records into ${inventoryUsageCollectionName}`);
   } catch (err) {
-    console.error("Inventory Usage collection rename migration failed:", err.message);
+    throw err;
   }
 }
 
@@ -556,40 +574,105 @@ function requireSameOrigin(req, res, next) {
 
 const protectBusinessApi = [authenticateStaff, requireSameOrigin];
 
+async function ensureMongoReady(req, res, next) {
+  // The cron route authenticates its caller before opening a database connection.
+  if (req.path.replace(/\/+$/, "") === "/cron/sms-reminders") return next();
+  try {
+    await ensureMongoConnection();
+    startLocalSmsReminderScheduler();
+    return next();
+  } catch (err) {
+    console.error("MongoDB is unavailable for an API request.");
+    return res.status(503).json({ message: "The database is temporarily unavailable." });
+  }
+}
+
+app.use("/api", ensureMongoReady);
+
 // =====================
 // Connect MongoDB
 // =====================
-if (!mongoUri) {
-  console.error("Missing MONGODB_URI environment variable.");
-  process.exit(1);
-}
+async function ensureMongoConnection() {
+  const readyState = mongoose.connection.readyState;
+  if (mongoReadyPromise && (readyState === 1 || readyState === 2)) {
+    return mongoReadyPromise;
+  }
+  if (!mongoUri) {
+    mongoReadyPromise = null;
+    throw new Error("MongoDB is not configured.");
+  }
 
-mongoose.connect(mongoUri)
-  .then(async () => {
-    console.log("MongoDB connected");
+  const connectionPromise = readyState === 2
+    ? mongoose.connection.asPromise()
+    : (readyState === 1 ? Promise.resolve(mongoose.connection) : mongoose.connect(mongoUri));
+  const readinessPromise = connectionPromise.then(async () => {
     await mongoose.connection.collection("staffSessions").createIndex(
       { expiresAt: 1 },
       { expireAfterSeconds: 0, name: "staff_sessions_expiry" }
     );
-    await migrateCustomersCollectionName();
-    await migrateCustomerFields();
-    await migrateOilServiceRecordsCollection();
-    await migrateInventoryUsageCollectionName();
-    const smsResult = await processDueSmsReminders();
-    if (smsResult.dueCount > 0) {
-      console.log(`SMS reminders processed: ${smsResult.sentCount} sent, ${smsResult.skippedCount} skipped, ${smsResult.failedCount} failed`);
-    }
-    setInterval(() => {
-      processDueSmsReminders()
-        .then((result) => {
-          if (result.dueCount > 0) {
-            console.log(`SMS reminders processed: ${result.sentCount} sent, ${result.skippedCount} skipped, ${result.failedCount} failed`);
-          }
-        })
-        .catch((err) => console.error("SMS reminder processing failed:", err.message));
-    }, smsReminderCheckIntervalMs);
-  })
-  .catch(err => console.log(err));
+    return mongoose.connection;
+  }).catch((err) => {
+    if (mongoReadyPromise === readinessPromise) mongoReadyPromise = null;
+    throw err;
+  });
+  mongoReadyPromise = readinessPromise;
+  return readinessPromise;
+}
+
+async function runExplicitMigrations() {
+  await ensureMongoConnection();
+  await migrateCustomersCollectionName();
+  await migrateCustomerFields();
+  await migrateOilServiceRecordsCollection();
+  await migrateInventoryUsageCollectionName();
+}
+
+if (isMigrationCommand) {
+  if (!process.argv.includes("--confirm")) {
+    console.error("No migration was run. Use npm run migrate -- --confirm after reviewing the backup and verification procedure.");
+    process.exitCode = 1;
+  } else {
+    runExplicitMigrations()
+      .then(async () => {
+        console.log("Explicit database migrations completed.");
+        await mongoose.disconnect();
+      })
+      .catch(async () => {
+        console.error("Database migration command failed. Review the migration target and server-side database logs.");
+        await mongoose.disconnect().catch(() => {});
+        process.exitCode = 1;
+      });
+  }
+} else {
+  ensureMongoConnection()
+    .then(() => {
+      console.log("MongoDB ready");
+      startLocalSmsReminderScheduler();
+    })
+    .catch(() => console.error("Initial MongoDB connection failed; API requests will return 503 until the database is ready."));
+}
+
+function startLocalSmsReminderScheduler() {
+  const isVercelRuntime = Boolean(process.env.VERCEL) || Boolean(process.env.VERCEL_ENV);
+  if (isVercelRuntime || process.env.NODE_ENV === "production" || localSmsReminderSchedulerStarted) return;
+  localSmsReminderSchedulerStarted = true;
+
+  processDueSmsReminders()
+    .then(logSmsReminderSummary)
+    .catch((err) => console.error("Initial SMS reminder processing failed:", err.message));
+
+  setInterval(() => {
+    processDueSmsReminders()
+      .then(logSmsReminderSummary)
+      .catch((err) => console.error("SMS reminder processing failed:", err.message));
+  }, smsReminderCheckIntervalMs);
+}
+
+function logSmsReminderSummary(result) {
+  if (result.dueCount > 0) {
+    console.log(`SMS reminders checked: ${result.sentCount} accepted, ${result.failedCount} failed, ${result.unknownCount} needs review, ${result.skippedCount} skipped`);
+  }
+}
 
 // =====================
 // Test route
@@ -1255,10 +1338,16 @@ function normalizeSmsPhoneNumber(phoneNumber, options = {}) {
   return includePlus ? `+${normalized}` : normalized;
 }
 
+function createSmsError(message, outcome) {
+  const error = new Error(message);
+  error.smsOutcome = outcome;
+  return error;
+}
+
 function sendMoceanSms(to, message) {
   return new Promise((resolve, reject) => {
     if (!moceanApiToken || !moceanFrom) {
-      reject(new Error("Mocean SMS credentials are not configured"));
+      reject(createSmsError("SMS provider is not configured.", "failed"));
       return;
     }
 
@@ -1281,30 +1370,21 @@ function sendMoceanSms(to, message) {
       },
       (response) => {
         let data = "";
-
-        response.on("data", (chunk) => {
-          data += chunk;
-        });
-
+        response.on("data", (chunk) => { data += chunk; });
+        response.on("aborted", () => reject(createSmsError("SMS provider response was interrupted; outcome needs review.", "unknown")));
+        response.on("error", () => reject(createSmsError("SMS provider response could not be read; outcome needs review.", "unknown")));
         response.on("end", () => {
           let parsed = {};
+          try { parsed = JSON.parse(data); }
+          catch { parsed = {}; }
 
-          try {
-            parsed = JSON.parse(data);
-          } catch (err) {
-            parsed = { raw: data };
-          }
-
+          const firstMessage = Array.isArray(parsed.messages) ? parsed.messages[0] : {};
           if (response.statusCode === 202) {
-            const firstMessage = Array.isArray(parsed.messages) ? parsed.messages[0] : {};
             const hasMessageStatus = firstMessage.status !== undefined && firstMessage.status !== null;
-            const messageStatus = Number(firstMessage.status);
-
-            if (hasMessageStatus && messageStatus !== 0) {
-              reject(new Error(firstMessage.err_msg || `Mocean SMS failed with message status ${firstMessage.status}`));
+            if (hasMessageStatus && Number(firstMessage.status) !== 0) {
+              reject(createSmsError("SMS provider rejected the message.", "failed"));
               return;
             }
-
             resolve({
               provider: "mocean",
               messageId: firstMessage.msgid || parsed.msgid || "",
@@ -1313,13 +1393,25 @@ function sendMoceanSms(to, message) {
             return;
           }
 
-          const firstError = Array.isArray(parsed.messages) ? parsed.messages[0] : {};
-          reject(new Error(firstError.err_msg || parsed.err_msg || `Mocean SMS failed with status ${response.statusCode}`));
+          if (!response.statusCode || response.statusCode >= 500) {
+            reject(createSmsError("SMS provider returned an inconclusive server response; outcome needs review.", "unknown"));
+            return;
+          }
+          reject(createSmsError(`SMS provider rejected the request (HTTP ${response.statusCode}).`, "failed"));
         });
       }
     );
 
-    request.on("error", reject);
+    const absoluteTimeout = setTimeout(() => {
+      request.destroy(createSmsError("SMS request timed out; outcome needs review.", "unknown"));
+    }, smsReminderRequestTimeoutMs);
+    request.setTimeout(smsReminderRequestTimeoutMs, () => {
+      request.destroy(createSmsError("SMS request timed out; outcome needs review.", "unknown"));
+    });
+    request.on("close", () => clearTimeout(absoluteTimeout));
+    request.on("error", (error) => {
+      reject(error.smsOutcome ? error : createSmsError("SMS connection failed; outcome needs review.", "unknown"));
+    });
     request.write(requestBody);
     request.end();
   });
@@ -1329,11 +1421,15 @@ async function sendSmsReminder(record) {
   const message = buildSmsReminderMessage(record);
 
   if (!normalizeSmsPhoneNumber(record.phoneNumber)) {
-    throw new Error("Customer phone number is missing");
+    throw createSmsError("Customer phone number is missing.", "failed");
   }
 
   if (moceanApiToken) {
     return sendMoceanSms(normalizeSmsPhoneNumber(record.phoneNumber, { includePlus: false }), message);
+  }
+
+  if (process.env.NODE_ENV === "production") {
+    throw createSmsError("SMS provider is not configured.", "failed");
   }
 
   const to = normalizeSmsPhoneNumber(record.phoneNumber);
@@ -1345,50 +1441,141 @@ async function sendSmsReminder(record) {
   };
 }
 
-async function processDueSmsReminders() {
+async function processDueSmsReminders(options = {}) {
   const today = getCurrentIsoDate();
   const collection = mongoose.connection.collection(vehiclesServicesCollectionName);
-  const processingTimeout = new Date(Date.now() - 10 * 60 * 1000);
-  const records = await collection
-    .find({
+  const batchLimit = Number.isInteger(options.batchLimit) && options.batchLimit > 0
+    ? Math.min(options.batchLimit, 100)
+    : 100;
+  const now = new Date();
+  const staleBefore = new Date(now.getTime() - smsReminderProcessingLeaseMs);
+  const staleProcessingRecords = await collection.find({
+    smsReminderStatus: "Processing",
+    smsReminderProcessingUntil: { $lt: now }
+  }, {
+    projection: { _id: 1, smsReminderClaimToken: 1 }
+  }).toArray();
+  let staleRecoveryCount = 0;
+  for (const staleRecord of staleProcessingRecords) {
+    const staleToken = staleRecord.smsReminderClaimToken;
+    const filter = {
+      _id: staleRecord._id,
+      smsReminderStatus: "Processing",
+      smsReminderProcessingUntil: { $lt: now },
+      ...(staleToken ? { smsReminderClaimToken: staleToken } : {})
+    };
+    const update = {
+      $set: {
+        smsReminderStatus: "Unknown",
+        smsReminderLastError: "Processing lease expired before the SMS outcome was recorded. Review before retrying.",
+        smsReminderOutcomeUnknownAt: now,
+        updatedAt: now,
+        ...(staleToken ? {
+          "smsReminderAttemptHistory.$[attempt].status": "Unknown",
+          "smsReminderAttemptHistory.$[attempt].completedAt": now,
+          "smsReminderAttemptHistory.$[attempt].error": "Processing lease expired; provider outcome is uncertain."
+        } : {})
+      },
+      $unset: {
+        smsReminderProcessingAt: "",
+        smsReminderClaimToken: "",
+        smsReminderProcessingUntil: ""
+      }
+    };
+    const recovery = await collection.updateOne(
+      filter,
+      update,
+      staleToken ? { arrayFilters: [{ "attempt.claimToken": staleToken, "attempt.status": "Processing" }] } : {}
+    );
+    staleRecoveryCount += Number(recovery.modifiedCount || 0);
+  }
+  // Older records may have a processing timestamp but predate the status/lease fields.
+  const legacyStaleResult = await collection.updateMany(
+    {
+      smsReminderStatus: { $exists: false },
+      smsReminderSentAt: { $exists: false },
+      smsReminderProcessingAt: { $lt: staleBefore }
+    },
+    {
+      $set: {
+        smsReminderStatus: "Unknown",
+        smsReminderLastError: "Legacy processing state has an uncertain SMS outcome. Review before retrying.",
+        smsReminderOutcomeUnknownAt: now,
+        updatedAt: now
+      },
+      $unset: { smsReminderProcessingAt: "" }
+    }
+  );
+  staleRecoveryCount += Number(legacyStaleResult.modifiedCount || 0);
+
+  let records;
+  if (options.retryRecordId) {
+    records = await collection.find({
+      _id: options.retryRecordId,
       reminderDate: { $lte: today },
       nextOilServiceDueDate: { $gte: today },
       smsReminderSentAt: { $exists: false },
-      $or: [
-        { smsReminderProcessingAt: { $exists: false } },
-        { smsReminderProcessingAt: { $lt: processingTimeout } }
-      ]
-    })
-    .sort({ reminderDate: 1, _id: 1 })
-    .limit(100)
-    .toArray();
+      smsReminderStatus: "Failed"
+    }).limit(1).toArray();
+  } else {
+    records = await collection
+      .find({
+        reminderDate: { $lte: today },
+        nextOilServiceDueDate: { $gte: today },
+        smsReminderSentAt: { $exists: false },
+        $or: [
+          { smsReminderStatus: "Pending" },
+          { smsReminderStatus: { $exists: false } }
+        ],
+        smsReminderProcessingAt: { $exists: false }
+      })
+      .sort({ reminderDate: 1, _id: 1 })
+      .limit(batchLimit)
+      .toArray();
+  }
 
   const result = {
     checkedAt: new Date(),
     dueCount: records.length,
     sentCount: 0,
+    claimedCount: 0,
     skippedCount: 0,
     failedCount: 0,
+    unknownCount: staleRecoveryCount,
+    supersededCount: 0,
     failures: []
   };
 
   for (const record of records) {
     const processingStartedAt = new Date();
+    const claimToken = crypto.randomUUID();
 
     try {
+      const claimFilter = {
+        _id: record._id,
+        smsReminderSentAt: { $exists: false },
+        smsReminderProcessingAt: { $exists: false },
+        ...(options.retryRecordId
+          ? { smsReminderStatus: "Failed" }
+          : { $or: [{ smsReminderStatus: "Pending" }, { smsReminderStatus: { $exists: false } }] })
+      };
       const claimResult = await collection.findOneAndUpdate(
-        {
-          _id: record._id,
-          smsReminderSentAt: { $exists: false },
-          $or: [
-            { smsReminderProcessingAt: { $exists: false } },
-            { smsReminderProcessingAt: { $lt: processingTimeout } }
-          ]
-        },
+        claimFilter,
         {
           $set: {
+            smsReminderStatus: "Processing",
             smsReminderProcessingAt: processingStartedAt,
+            smsReminderProcessingUntil: new Date(processingStartedAt.getTime() + smsReminderProcessingLeaseMs),
+            smsReminderClaimToken: claimToken,
             updatedAt: processingStartedAt
+          },
+          $inc: { smsReminderAttemptCount: 1 },
+          $push: {
+            smsReminderAttemptHistory: {
+              claimToken,
+              startedAt: processingStartedAt,
+              status: "Processing"
+            }
           }
         },
         { returnDocument: "after" }
@@ -1399,6 +1586,7 @@ async function processDueSmsReminders() {
         result.skippedCount += 1;
         continue;
       }
+      result.claimedCount += 1;
 
       const newerRecord = await collection.findOne({
         vehiclePlateNumber: claimedRecord.vehiclePlateNumber,
@@ -1410,92 +1598,154 @@ async function processDueSmsReminders() {
 
       if (newerRecord) {
         await collection.updateOne(
-          { _id: claimedRecord._id },
           {
-            $set: { updatedAt: new Date() },
-            $unset: { smsReminderProcessingAt: "" }
-          }
+            _id: claimedRecord._id,
+            smsReminderStatus: "Processing",
+            smsReminderClaimToken: claimToken
+          },
+          {
+            $set: {
+              smsReminderStatus: "Superseded",
+              smsReminderLastError: "A newer service record exists; this reminder was not sent.",
+              updatedAt: new Date(),
+              "smsReminderAttemptHistory.$[attempt].status": "Superseded",
+              "smsReminderAttemptHistory.$[attempt].completedAt": new Date(),
+              "smsReminderAttemptHistory.$[attempt].error": "A newer service record exists."
+            },
+            $unset: { smsReminderProcessingAt: "", smsReminderProcessingUntil: "", smsReminderClaimToken: "" }
+          },
+          { arrayFilters: [{ "attempt.claimToken": claimToken }] }
         );
         result.skippedCount += 1;
+        result.supersededCount += 1;
         continue;
       }
 
-      const now = new Date();
-
-      await collection.updateOne(
-        { _id: claimedRecord._id, smsReminderSentAt: { $exists: false } },
-        {
-          $set: {
-            reminderStatus: "Reminder Sent",
-            smsReminderSentAt: now,
-            smsReminderProvider: moceanApiToken ? "mocean" : "mock",
-            smsReminderStatus: "submitted",
-            updatedAt: now
-          },
-          $unset: {
-            smsReminderLastError: ""
-          }
-        }
-      );
-
+      let smsResult;
       try {
-        const smsResult = await sendSmsReminder(claimedRecord);
-
-        await collection.updateOne(
-          { _id: claimedRecord._id },
-          {
-            $set: {
-              smsReminderProvider: smsResult.provider,
-              smsReminderMessageId: smsResult.messageId,
-              smsReminderStatus: smsResult.status,
-              updatedAt: new Date()
-            },
-            $unset: {
-              smsReminderProcessingAt: "",
-              smsReminderLastError: ""
-            }
-          }
-        );
+        smsResult = await sendSmsReminder(claimedRecord);
       } catch (err) {
+        const outcome = err.smsOutcome === "failed" ? "Failed" : "Unknown";
+        const completedAt = new Date();
+        const safeDescription = outcome === "Failed"
+          ? (err.message || "SMS provider rejected the request.").slice(0, 240)
+          : "SMS submission outcome is uncertain. Review before retrying.";
         await collection.updateOne(
-          { _id: claimedRecord._id },
+          { _id: claimedRecord._id, smsReminderStatus: "Processing", smsReminderClaimToken: claimToken },
           {
             $set: {
-              smsReminderStatus: "submitted",
-              smsReminderLastError: `SMS submitted from backend; gateway confirmation unavailable: ${err.message}`,
-              updatedAt: new Date()
+              smsReminderStatus: outcome,
+              smsReminderLastError: safeDescription,
+              updatedAt: completedAt,
+              [outcome === "Failed" ? "smsReminderFailedAt" : "smsReminderOutcomeUnknownAt"]: completedAt,
+              "smsReminderAttemptHistory.$[attempt].status": outcome,
+              "smsReminderAttemptHistory.$[attempt].completedAt": completedAt,
+              "smsReminderAttemptHistory.$[attempt].error": safeDescription
             },
-            $unset: {
-              smsReminderProcessingAt: ""
-            }
-          }
+            $unset: { smsReminderProcessingAt: "", smsReminderProcessingUntil: "", smsReminderClaimToken: "" }
+          },
+          { arrayFilters: [{ "attempt.claimToken": claimToken }] }
         );
+        console.error("SMS reminder attempt ended", {
+          reminderId: String(claimedRecord._id),
+          outcome,
+          reason: safeDescription
+        });
+        if (outcome === "Failed") result.failedCount += 1;
+        else result.unknownCount += 1;
+        result.failures.push({ id: String(claimedRecord._id), outcome, message: safeDescription });
+        continue;
       }
 
-      result.sentCount += 1;
+      const acceptedAt = new Date();
+      try {
+        const saved = await collection.updateOne(
+          { _id: claimedRecord._id, smsReminderStatus: "Processing", smsReminderClaimToken: claimToken },
+          {
+            $set: {
+              reminderStatus: "Reminder Sent",
+              smsReminderSentAt: acceptedAt,
+              smsReminderProvider: smsResult.provider,
+              smsReminderMessageId: smsResult.messageId,
+              smsReminderStatus: "Sent",
+              smsReminderLastError: "",
+              updatedAt: acceptedAt,
+              "smsReminderAttemptHistory.$[attempt].status": "Sent",
+              "smsReminderAttemptHistory.$[attempt].completedAt": acceptedAt,
+              "smsReminderAttemptHistory.$[attempt].messageId": smsResult.messageId
+            },
+            $unset: { smsReminderProcessingAt: "", smsReminderProcessingUntil: "", smsReminderClaimToken: "" }
+          },
+          { arrayFilters: [{ "attempt.claimToken": claimToken }] }
+        );
+        if (!saved.matchedCount) {
+          result.unknownCount += 1;
+          result.failures.push({ id: String(claimedRecord._id), outcome: "Unknown", message: "Provider accepted the SMS but the claim expired before its result could be saved." });
+          continue;
+        }
+        result.sentCount += 1;
+      } catch (err) {
+        // Keep the claim token and Processing state if MongoDB is unavailable. Lease recovery will mark it Unknown, never resend it.
+        console.error("SMS accepted but reminder result could not be saved", { reminderId: String(claimedRecord._id) });
+        try {
+          await collection.updateOne(
+            { _id: claimedRecord._id, smsReminderStatus: "Processing", smsReminderClaimToken: claimToken },
+            {
+              $set: {
+                smsReminderStatus: "Unknown",
+                smsReminderLastError: "Mocean accepted the SMS, but its result could not be saved. Review before retrying.",
+                smsReminderOutcomeUnknownAt: new Date(),
+                updatedAt: new Date(),
+                "smsReminderAttemptHistory.$[attempt].status": "Unknown",
+                "smsReminderAttemptHistory.$[attempt].error": "Result persistence failed after provider acceptance."
+              },
+              $unset: { smsReminderProcessingAt: "", smsReminderProcessingUntil: "", smsReminderClaimToken: "" }
+            },
+            { arrayFilters: [{ "attempt.claimToken": claimToken }] }
+          );
+        } catch (markErr) {
+          // Leave Processing in place; the lease sweep will conservatively move it to Unknown.
+        }
+        result.unknownCount += 1;
+      }
     } catch (err) {
       await collection.updateOne(
-        { _id: record._id },
+        { _id: record._id, smsReminderStatus: "Processing", smsReminderClaimToken: claimToken },
         {
           $set: {
-            smsReminderLastError: err.message,
-            updatedAt: new Date()
+            smsReminderStatus: "Failed",
+            smsReminderLastError: "Unable to prepare the SMS attempt. Staff review is required.",
+            smsReminderFailedAt: new Date(),
+            updatedAt: new Date(),
+            "smsReminderAttemptHistory.$[attempt].status": "Failed",
+            "smsReminderAttemptHistory.$[attempt].error": "Unable to prepare the SMS attempt."
           },
-          $unset: {
-            smsReminderProcessingAt: ""
-          }
-        }
+          $unset: { smsReminderProcessingAt: "", smsReminderProcessingUntil: "", smsReminderClaimToken: "" }
+        },
+        { arrayFilters: [{ "attempt.claimToken": claimToken }] }
       );
 
       result.failedCount += 1;
       result.failures.push({
         id: String(record._id),
-        customerName: record.customerName,
-        phoneNumber: record.phoneNumber,
-        error: err.message
+        outcome: "Failed",
+        message: "Unable to prepare the SMS attempt. Staff review is required."
       });
     }
   }
+
+  const remainingQuery = {
+    reminderDate: { $lte: today },
+    nextOilServiceDueDate: { $gte: today },
+    smsReminderSentAt: { $exists: false },
+    $or: [
+      { smsReminderStatus: "Pending" },
+      { smsReminderStatus: { $exists: false } }
+    ],
+    smsReminderProcessingAt: { $exists: false }
+  };
+  result.remainingCount = options.retryRecordId ? 0 : await collection.countDocuments(remainingQuery);
+  result.hasMore = result.remainingCount > 0;
 
   return result;
 }
@@ -1543,13 +1793,83 @@ function buildOilServicePayload(body) {
 // =====================
 // PROCESS due SMS service reminders
 // =====================
+app.post('/api/cron/sms-reminders', async (req, res) => {
+  const authorization = String(req.get("authorization") || "");
+  const bearerSecret = authorization.match(/^Bearer\s+(.+)$/i)?.[1] || "";
+  if (!constantTimeSecretMatches(bearerSecret, process.env.CRON_SECRET || "")) {
+    return res.status(401).json({ message: "Unauthorized." });
+  }
+
+  try {
+    await ensureMongoConnection();
+    startLocalSmsReminderScheduler();
+  } catch (err) {
+    console.error("MongoDB is unavailable for the scheduled reminder request.");
+    return res.status(503).json({ message: "The database is temporarily unavailable." });
+  }
+
+  try {
+    const result = await processDueSmsReminders({ batchLimit: 25 });
+    return res.json({
+      checkedAt: result.checkedAt,
+      dueCount: result.dueCount,
+      claimedCount: result.claimedCount,
+      sentCount: result.sentCount,
+      skippedCount: result.skippedCount,
+      supersededCount: result.supersededCount,
+      failedCount: result.failedCount,
+      unknownCount: result.unknownCount,
+      remainingCount: result.remainingCount,
+      hasMore: result.hasMore
+    });
+  } catch (err) {
+    console.error("Scheduled SMS reminder processing failed:", err.message);
+    return res.status(500).json({ message: "Unable to process scheduled SMS reminders." });
+  }
+});
+
 app.use('/api/service-reminders', ...protectBusinessApi);
 app.post('/api/service-reminders/process-sms', async (req, res) => {
   try {
     const result = await processDueSmsReminders();
     res.json(result);
   } catch (err) {
-    res.status(500).json({ message: err.message || "Unable to process SMS reminders." });
+    console.error("Staff-triggered SMS reminder processing failed:", err.message);
+    res.status(500).json({ message: "Unable to process SMS reminders." });
+  }
+});
+
+app.post('/api/service-reminders/:id/retry', async (req, res) => {
+  if (!ObjectId.isValid(req.params.id)) {
+    return res.status(400).json({ message: "Invalid reminder ID." });
+  }
+
+  try {
+    const collection = mongoose.connection.collection(vehiclesServicesCollectionName);
+    const id = new ObjectId(req.params.id);
+    const record = await collection.findOne({ _id: id });
+    if (!record || record.smsReminderStatus !== "Failed" || record.smsReminderSentAt) {
+      return res.status(409).json({ message: "Only failed reminders can be retried." });
+    }
+    const today = getCurrentIsoDate();
+    if (record.reminderDate > today || record.nextOilServiceDueDate < today) {
+      return res.status(409).json({ message: "This reminder is outside its eligible date window and cannot be retried." });
+    }
+
+    const result = await processDueSmsReminders({ retryRecordId: id });
+    if (!result.claimedCount) {
+      return res.status(409).json({ message: "The reminder could not be claimed for retry." });
+    }
+    return res.json({
+      sentCount: result.sentCount,
+      failedCount: result.failedCount,
+      unknownCount: result.unknownCount,
+      skippedCount: result.skippedCount,
+      supersededCount: result.supersededCount
+    });
+  } catch (err) {
+    console.error("Manual SMS reminder retry failed:", err.message);
+    return res.status(500).json({ message: "Unable to retry SMS reminder." });
   }
 });
 
@@ -1616,7 +1936,9 @@ app.get('/api/oil-services', async (req, res) => {
         record.reminderDate,
         record.nextOilServiceDueDate,
         getCurrentIsoDate(),
-        record.smsReminderSentAt,
+        ["Sent", "accepted", "sent"].includes(String(record.smsReminderStatus || ""))
+          ? record.smsReminderSentAt
+          : "",
         hasNewerServiceRecord
       );
       return {
@@ -1680,6 +2002,8 @@ app.delete('/api/oil-services/:id', async (req, res) => {
 // =====================
 // Start server
 // =====================
-app.listen(3000, () => {
-  console.log("Server running on port 3000");
-});
+if (!isMigrationCommand) {
+  app.listen(3000, () => {
+    console.log("Server running on port 3000");
+  });
+}

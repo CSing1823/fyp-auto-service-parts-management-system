@@ -6,6 +6,7 @@
   "scripts": {
     "hash-password": "node scripts/hash-password.js",
     "seed-staff": "node scripts/seed-staff-user.js",
+    "migrate": "node server.js --run-migrations",
     "start": "nodemon server.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },

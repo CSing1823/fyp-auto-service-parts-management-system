@@ -1,5 +1,6 @@
 const OIL_SERVICE_API_URL = "/api/oil-services";
 const SERVICE_REMINDER_SMS_API_URL = "/api/service-reminders/process-sms";
+const SERVICE_REMINDER_RETRY_API_URL = "/api/service-reminders";
 const OIL_SERVICE_STORAGE_KEY = "oilServiceRecords";
 const OIL_SERVICE_PACKAGES = {
   "5000km (3 months)": 3,
@@ -71,6 +72,12 @@ function escapeHtml(value) {
 function normalizeOilServiceRecord(record) {
   const vehicleBrand = String(record.vehicleBrand || "").trim();
   const vehicleModel = String(record.vehicleModel || "").trim();
+  const storedSmsStatus = String(record.smsReminderStatus || "");
+  const normalizedSmsStatus = storedSmsStatus === "submitted"
+    ? "Unknown"
+    : (["accepted", "sent"].includes(storedSmsStatus.toLowerCase())
+      ? "Sent"
+      : (storedSmsStatus || (record.smsReminderSentAt ? "Unknown" : "Pending")));
   const normalizedRecord = {
     id: record._id || record.id,
     serviceDate: record.serviceDate,
@@ -87,7 +94,7 @@ function normalizeOilServiceRecord(record) {
     partsUsed: String(record.partsUsed || "").trim(),
     smsReminderSentAt: record.smsReminderSentAt || "",
     smsReminderProvider: record.smsReminderProvider || "",
-    smsReminderStatus: record.smsReminderStatus || "",
+    smsReminderStatus: normalizedSmsStatus,
     smsReminderLastError: record.smsReminderLastError || ""
   };
 
@@ -102,7 +109,7 @@ function normalizeOilServiceRecord(record) {
     normalizedRecord.reminderDate,
     normalizedRecord.nextOilServiceDueDate,
     todayIsoDate(),
-    normalizedRecord.smsReminderSentAt
+    normalizedSmsStatus === "Sent" ? normalizedRecord.smsReminderSentAt : ""
   );
 
   return normalizedRecord;
@@ -234,6 +241,15 @@ async function processDueSmsReminders() {
   } catch (err) {
     return null;
   }
+}
+
+async function retryFailedSmsReminder(id) {
+  const res = await apiFetch(`${SERVICE_REMINDER_RETRY_API_URL}/${encodeURIComponent(id)}/retry`, {
+    method: "POST"
+  });
+  const payload = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(payload.message || "Unable to retry SMS reminder.");
+  return payload;
 }
 
 async function persistOilServiceRecord(record, method, id = "") {

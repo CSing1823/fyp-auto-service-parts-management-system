@@ -131,16 +131,33 @@ function createReminderCardHtml(record) {
             <i class="bi bi-calendar2-check"></i>
             <span>Recommended action window starts on ${escapeHtml(record.reminderDate)}</span>
           </div>
-          ${record.smsReminderSentAt ? `
+          <div class="contact-row">
+            <i class="bi bi-chat-dots"></i>
+            <span>SMS submission status: ${escapeHtml(record.smsReminderStatus || "Pending")}</span>
+          </div>
+          ${record.smsReminderSentAt && record.smsReminderStatus === "Sent" ? `
             <div class="contact-row">
               <i class="bi bi-chat-dots-fill"></i>
               <span>SMS reminder sent on ${escapeHtml(formatReminderDateTime(record.smsReminderSentAt))}</span>
             </div>
           ` : ""}
-          ${record.smsReminderLastError && record.reminderStatus !== "Reminder Sent" ? `
+          ${record.smsReminderStatus === "Unknown" ? `
+            <div class="contact-row">
+              <i class="bi bi-exclamation-triangle-fill"></i>
+              <span>SMS outcome needs review. Do not retry until the provider outcome is checked.</span>
+            </div>
+          ` : ""}
+          ${record.smsReminderLastError && ["Failed", "Unknown"].includes(record.smsReminderStatus) ? `
             <div class="contact-row">
               <i class="bi bi-exclamation-circle-fill"></i>
-              <span>SMS reminder pending: ${escapeHtml(record.smsReminderLastError)}</span>
+              <span>${escapeHtml(record.smsReminderLastError)}</span>
+            </div>
+          ` : ""}
+          ${record.smsReminderStatus === "Failed" ? `
+            <div class="contact-row">
+              <button class="btn btn-sm btn-outline-primary retry-sms-reminder" data-reminder-id="${escapeHtml(record.id)}">
+                Retry SMS
+              </button>
             </div>
           ` : ""}
         </div>
@@ -183,6 +200,28 @@ function renderReminderCards() {
 
 if (reminderSearchInput) {
   reminderSearchInput.addEventListener("input", renderReminderCards);
+}
+
+if (reminderCardsContainer) {
+  reminderCardsContainer.addEventListener("click", async (event) => {
+    const button = event.target.closest(".retry-sms-reminder");
+    if (!button) return;
+
+    button.disabled = true;
+    button.textContent = "Retrying…";
+    try {
+      const result = await retryFailedSmsReminder(button.dataset.reminderId);
+      reminderRecords = await loadOilServiceRecords();
+      renderReminderCards();
+      if (result.supersededCount > 0) {
+        window.alert("This reminder was not sent because a newer service record exists for the vehicle.");
+      }
+    } catch (err) {
+      button.disabled = false;
+      button.textContent = "Retry SMS";
+      window.alert(err.message || "Unable to retry SMS reminder.");
+    }
+  });
 }
 
 reminderFilterButtons.forEach((btn) => {
