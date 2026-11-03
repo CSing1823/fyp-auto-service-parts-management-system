@@ -59,7 +59,7 @@ const reminderStatusInput = document.getElementById("reminderStatus");
 const phoneNumberInput = document.getElementById("phoneNumber");
 const vehicleBrandInput = document.getElementById("vehicleBrand");
 
-const CUSTOMER_API_URL = "http://localhost:3000/api/customers";
+const CUSTOMER_API_URL = "/api/customers";
 let oilServiceRecords = [];
 let customers = [];
 let pendingDeleteServiceRecordId = "";
@@ -144,7 +144,7 @@ function customerNameMatchesSearch(name, keyword) {
 
 async function loadCustomersForVehicleForm() {
   try {
-    const res = await fetch(`${CUSTOMER_API_URL}?limit=500`);
+    const res = await apiFetch(`${CUSTOMER_API_URL}?limit=500`);
     if (!res.ok) throw new Error("Unable to load customers");
     customers = await res.json();
   } catch (err) {

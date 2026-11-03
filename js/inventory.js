@@ -14,7 +14,7 @@ if (menuToggle && sidebar && sidebarOverlay) {
   });
 }
 
-const API_BASE_URL = "http://localhost:3000/api/parts-usage";
+const API_BASE_URL = "/api/parts-usage";
 const STORAGE_KEY = "partsUsageLogs";
 const statusOptions = [
   "Pending Check",
@@ -129,7 +129,7 @@ function createLocalId() {
 
 async function loadUsageLogs() {
   try {
-    const res = await fetch(API_BASE_URL);
+    const res = await apiFetch(API_BASE_URL);
     if (!res.ok) throw new Error("Unable to load usage logs from API");
 
     const data = await res.json();
@@ -255,7 +255,7 @@ function getFormData() {
 async function persistLog(log, method, id = "") {
   try {
     const url = id ? `${API_BASE_URL}/${id}` : API_BASE_URL;
-    const res = await fetch(url, {
+    const res = await apiFetch(url, {
       method,
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(log)
@@ -270,7 +270,7 @@ async function persistLog(log, method, id = "") {
 
 async function deleteLogFromApi(id) {
   try {
-    const res = await fetch(`${API_BASE_URL}/${id}`, { method: "DELETE" });
+    const res = await apiFetch(`${API_BASE_URL}/${id}`, { method: "DELETE" });
     return res.ok;
   } catch (err) {
     return false;

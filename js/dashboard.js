@@ -1,8 +1,8 @@
 const DASHBOARD_API = {
-  customers: "http://localhost:3000/api/customers?limit=1000",
-  services: "http://localhost:3000/api/oil-services",
-  partsUsage: "http://localhost:3000/api/parts-usage",
-  enquiries: "http://localhost:3000/api/enquiries"
+  customers: "/api/customers?limit=1000",
+  services: "/api/oil-services",
+  partsUsage: "/api/parts-usage",
+  enquiries: "/api/enquiries"
 };
 
 const menuToggle = document.getElementById("menuToggle");
@@ -38,7 +38,7 @@ function todayIsoDate() {
 }
 
 async function fetchJson(url) {
-  const response = await fetch(url);
+  const response = await apiFetch(url);
   if (!response.ok) throw new Error(`Unable to load ${url}`);
   return response.json();
 }

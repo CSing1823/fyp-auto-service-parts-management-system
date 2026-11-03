@@ -111,6 +111,13 @@ const fixedPasswordResetEmail = normalizeEmail(
   process.env.PASSWORD_RESET_EMAIL || "chaihuahautoparts@gmail.com"
 );
 const mongoUri = process.env.MONGODB_URI;
+const sessionCookieName = "fyp_staff_session";
+const resetCookieName = "fyp_password_reset";
+const sessionDurationMs = 8 * 60 * 60 * 1000;
+const allowedFrontendOrigins = new Set(
+  String(process.env.FRONTEND_ORIGINS || "http://127.0.0.1:5501,http://localhost:5501")
+    .split(",").map((origin) => origin.trim()).filter(Boolean)
+);
 
 function normalizeEmail(email) {
   return String(email || "").trim().toLowerCase();
@@ -471,8 +478,83 @@ async function sendPasswordResetOtp(email, otp) {
 // =====================
 // Middleware
 // =====================
-app.use(cors());
+app.use((req, res, next) => cors({
+  origin(origin, callback) {
+    return callback(null, !origin || isAllowedRequestOrigin(req));
+  },
+  credentials: true
+})(req, res, next));
 app.use(express.json());
+
+function sessionCookieOptions(maxAge) {
+  const isProduction = process.env.NODE_ENV === "production";
+  return {
+    httpOnly: true,
+    secure: isProduction || process.env.COOKIE_SECURE === "true",
+    sameSite: "lax",
+    path: "/",
+    ...(maxAge === undefined ? {} : { maxAge })
+  };
+}
+
+function getCookie(req, name) {
+  const cookieHeader = req.headers.cookie || "";
+  const cookie = cookieHeader.split(";").map((part) => part.trim())
+    .find((part) => part.startsWith(`${name}=`));
+  if (!cookie) return "";
+  try { return decodeURIComponent(cookie.slice(name.length + 1)); }
+  catch { return ""; }
+}
+
+function getSessionId(req) { return getCookie(req, sessionCookieName); }
+
+function isAllowedRequestOrigin(req) {
+  const origin = req.get("origin");
+  if (!origin) return process.env.NODE_ENV !== "production";
+  if (allowedFrontendOrigins.has(origin)) return true;
+  const forwardedProto = String(req.get("x-forwarded-proto") || req.protocol).split(",")[0].trim();
+  return origin === `${forwardedProto}://${req.get("host")}`;
+}
+
+async function authenticateStaff(req, res, next) {
+  try {
+    const rawSessionId = getSessionId(req);
+    if (!rawSessionId) return res.status(401).json({ message: "Authentication required." });
+    const sessionHash = hashResetSecret(rawSessionId);
+    const now = new Date();
+    const session = await mongoose.connection.collection("staffSessions").findOne({
+      sessionHash,
+      expiresAt: { $gt: now }
+    });
+    if (!session) return res.status(401).json({ message: "Session is invalid or expired." });
+    const staffUser = await mongoose.connection.collection("staffUsers").findOne({
+      _id: session.staffUserId,
+      isActive: { $ne: false }
+    });
+    if (!staffUser) {
+      await mongoose.connection.collection("staffSessions").deleteOne({ _id: session._id });
+      return res.status(401).json({ message: "Authentication required." });
+    }
+    req.staffUser = {
+      id: staffUser._id,
+      name: staffUser.name,
+      email: staffUser.email,
+      role: staffUser.role || "Staff"
+    };
+    req.staffSession = session;
+    next();
+  } catch (err) {
+    console.error("Session validation failed:", err.message);
+    res.status(500).json({ message: "Unable to validate session." });
+  }
+}
+
+function requireSameOrigin(req, res, next) {
+  if (!isAllowedRequestOrigin(req)) return res.status(403).json({ message: "Request origin is not allowed." });
+  next();
+}
+
+const protectBusinessApi = [authenticateStaff, requireSameOrigin];
 
 // =====================
 // Connect MongoDB
@@ -485,6 +567,10 @@ if (!mongoUri) {
 mongoose.connect(mongoUri)
   .then(async () => {
     console.log("MongoDB connected");
+    await mongoose.connection.collection("staffSessions").createIndex(
+      { expiresAt: 1 },
+      { expireAfterSeconds: 0, name: "staff_sessions_expiry" }
+    );
     await migrateCustomersCollectionName();
     await migrateCustomerFields();
     await migrateOilServiceRecordsCollection();
@@ -515,7 +601,7 @@ app.get('/', (req, res) => {
 // =====================
 // STAFF LOGIN
 // =====================
-app.post('/api/auth/login', async (req, res) => {
+app.post('/api/auth/login', requireSameOrigin, async (req, res) => {
   try {
     const email = normalizeEmail(req.body.email);
     const password = String(req.body.password || "");
@@ -532,24 +618,44 @@ app.post('/api/auth/login', async (req, res) => {
       return res.status(401).json({ message: "Invalid email or password." });
     }
 
-    res.json({
-      user: {
-        id: staffUser._id,
-        name: staffUser.name,
-        email: staffUser.email,
-        role: staffUser.role || "Staff"
-      }
+    const rawSessionId = crypto.randomBytes(32).toString("base64url");
+    const now = new Date();
+    await mongoose.connection.collection("staffSessions").insertOne({
+      sessionHash: hashResetSecret(rawSessionId),
+      staffUserId: staffUser._id,
+      createdAt: now,
+      expiresAt: new Date(now.getTime() + sessionDurationMs),
+      userAgent: String(req.get("user-agent") || "").slice(0, 500),
+      ipAddress: req.ip
     });
+    res.cookie(sessionCookieName, rawSessionId, sessionCookieOptions(sessionDurationMs));
+    res.json({ user: { id: staffUser._id, name: staffUser.name, email: staffUser.email, role: staffUser.role || "Staff" } });
   } catch (err) {
     console.error(err);
     res.status(500).json({ message: "Login failed. Please try again." });
   }
 });
 
+app.post('/api/auth/logout', requireSameOrigin, async (req, res) => {
+  try {
+    const rawSessionId = getSessionId(req);
+    if (rawSessionId) await mongoose.connection.collection("staffSessions").deleteOne({ sessionHash: hashResetSecret(rawSessionId) });
+    res.clearCookie(sessionCookieName, sessionCookieOptions());
+    res.json({ message: "Signed out successfully." });
+  } catch (err) {
+    console.error("Logout failed:", err.message);
+    res.status(500).json({ message: "Unable to sign out." });
+  }
+});
+
+app.get('/api/auth/session', authenticateStaff, (req, res) => {
+  res.json({ user: req.staffUser });
+});
+
 // =====================
 // STAFF PASSWORD RESET
 // =====================
-app.post('/api/auth/forgot-password', async (req, res) => {
+app.post('/api/auth/forgot-password', requireSameOrigin, async (req, res) => {
   try {
     const email = fixedPasswordResetEmail;
 
@@ -593,7 +699,7 @@ app.post('/api/auth/forgot-password', async (req, res) => {
   }
 });
 
-app.post('/api/auth/verify-reset-otp', async (req, res) => {
+app.post('/api/auth/verify-reset-otp', requireSameOrigin, async (req, res) => {
   try {
     const email = fixedPasswordResetEmail;
     const otp = String(req.body.otp || "").trim();
@@ -643,20 +749,18 @@ app.post('/api/auth/verify-reset-otp', async (req, res) => {
       }
     );
 
-    res.json({
-      message: "OTP verified. You can reset your password now.",
-      resetToken
-    });
+    res.cookie(resetCookieName, resetToken, sessionCookieOptions(resetTokenExpiryMs));
+    res.json({ message: "OTP verified. You can reset your password now." });
   } catch (err) {
     console.error(err);
     res.status(500).json({ message: "Unable to verify OTP. Please try again." });
   }
 });
 
-app.post('/api/auth/reset-password', async (req, res) => {
+app.post('/api/auth/reset-password', requireSameOrigin, async (req, res) => {
   try {
     const email = fixedPasswordResetEmail;
-    const resetToken = String(req.body.resetToken || "");
+    const resetToken = getCookie(req, resetCookieName);
     const newPassword = String(req.body.newPassword || "");
 
     if (!email || !resetToken || newPassword.length < 6) {
@@ -693,6 +797,7 @@ app.post('/api/auth/reset-password', async (req, res) => {
       { $set: { used: true, usedAt: now } }
     );
 
+    res.clearCookie(resetCookieName, sessionCookieOptions());
     res.json({ message: "Password reset successfully. Please sign in with your new password." });
   } catch (err) {
     console.error(err);
@@ -703,6 +808,7 @@ app.post('/api/auth/reset-password', async (req, res) => {
 // =====================
 // CREATE customer
 // =====================
+app.use('/api/customers', ...protectBusinessApi);
 app.post('/api/customers', async (req, res) => {
   try {
     const payload = buildCustomerPayload(req.body);
@@ -845,6 +951,7 @@ function buildUsagePayload(body) {
 // =====================
 // CREATE parts usage log
 // =====================
+app.use('/api/parts-usage', ...protectBusinessApi);
 app.post('/api/parts-usage', async (req, res) => {
   try {
     const payload = buildUsagePayload(req.body);
@@ -962,6 +1069,7 @@ function buildEnquiryPayload(body) {
 // =====================
 // CREATE customer enquiry
 // =====================
+app.use('/api/enquiries', ...protectBusinessApi);
 app.post('/api/enquiries', async (req, res) => {
   try {
     const payload = buildEnquiryPayload(req.body);
@@ -1435,6 +1543,7 @@ function buildOilServicePayload(body) {
 // =====================
 // PROCESS due SMS service reminders
 // =====================
+app.use('/api/service-reminders', ...protectBusinessApi);
 app.post('/api/service-reminders/process-sms', async (req, res) => {
   try {
     const result = await processDueSmsReminders();
@@ -1447,6 +1556,7 @@ app.post('/api/service-reminders/process-sms', async (req, res) => {
 // =====================
 // CREATE oil service record
 // =====================
+app.use('/api/oil-services', ...protectBusinessApi);
 app.post('/api/oil-services', async (req, res) => {
   try {
     const payload = buildOilServicePayload(req.body);

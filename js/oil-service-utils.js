@@ -1,5 +1,5 @@
-const OIL_SERVICE_API_URL = "http://localhost:3000/api/oil-services";
-const SERVICE_REMINDER_SMS_API_URL = "http://localhost:3000/api/service-reminders/process-sms";
+const OIL_SERVICE_API_URL = "/api/oil-services";
+const SERVICE_REMINDER_SMS_API_URL = "/api/service-reminders/process-sms";
 const OIL_SERVICE_STORAGE_KEY = "oilServiceRecords";
 const OIL_SERVICE_PACKAGES = {
   "5000km (3 months)": 3,
@@ -213,7 +213,7 @@ function getOilServiceRecordsFromStorage() {
 
 async function loadOilServiceRecords() {
   try {
-    const res = await fetch(OIL_SERVICE_API_URL);
+    const res = await apiFetch(OIL_SERVICE_API_URL);
     if (!res.ok) throw new Error("Unable to load oil service records from API");
 
     const data = await res.json();
@@ -227,7 +227,7 @@ async function loadOilServiceRecords() {
 
 async function processDueSmsReminders() {
   try {
-    const res = await fetch(SERVICE_REMINDER_SMS_API_URL, { method: "POST" });
+    const res = await apiFetch(SERVICE_REMINDER_SMS_API_URL, { method: "POST" });
     if (!res.ok) throw new Error("Unable to process SMS reminders");
 
     return await res.json();
@@ -239,7 +239,7 @@ async function processDueSmsReminders() {
 async function persistOilServiceRecord(record, method, id = "") {
   try {
     const url = id ? `${OIL_SERVICE_API_URL}/${id}` : OIL_SERVICE_API_URL;
-    const res = await fetch(url, {
+    const res = await apiFetch(url, {
       method,
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(record)
@@ -254,7 +254,7 @@ async function persistOilServiceRecord(record, method, id = "") {
 
 async function deleteOilServiceRecordFromApi(id) {
   try {
-    const res = await fetch(`${OIL_SERVICE_API_URL}/${id}`, { method: "DELETE" });
+    const res = await apiFetch(`${OIL_SERVICE_API_URL}/${id}`, { method: "DELETE" });
     return res.ok;
   } catch (err) {
     return false;

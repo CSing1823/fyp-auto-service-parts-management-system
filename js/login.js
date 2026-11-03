@@ -1,12 +1,14 @@
 const SESSION_KEY = "currentLoggedInUser";
-const API_BASE_URL = "http://localhost:3000";
+const API_BASE_URL = ["localhost", "127.0.0.1"].includes(window.location.hostname) ? "http://127.0.0.1:3000" : "";
 const FIXED_PASSWORD_RESET_EMAIL = "chaihuahautoparts@gmail.com";
 localStorage.removeItem(SESSION_KEY);
 
-function redirectIfAlreadyLoggedIn() {
-  const currentUser = sessionStorage.getItem(SESSION_KEY);
-  if (currentUser) {
-    window.location.href = "home.html";
+async function redirectIfAlreadyLoggedIn() {
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/auth/session`, { credentials: "include" });
+    if (response.ok) window.location.replace("home.html");
+  } catch (err) {
+    console.error("Unable to check existing staff session.", err);
   }
 }
 
@@ -37,7 +39,6 @@ const requestAnotherOtpButton = document.getElementById("requestAnotherOtp");
 const resetSteps = document.querySelectorAll("[data-reset-step]");
 
 let resetEmail = "";
-let resetToken = "";
 let otpIntervalId = null;
 let otpExpiresAt = 0;
 
@@ -86,6 +87,7 @@ loginForm.addEventListener("submit", async function (e) {
 
   try {
     const response = await fetch(`${API_BASE_URL}/api/auth/login`, {
+      credentials: "include",
       method: "POST",
       headers: {
         "Content-Type": "application/json"
@@ -99,7 +101,6 @@ loginForm.addEventListener("submit", async function (e) {
       throw new Error(data.message || "Invalid email or password.");
     }
 
-    sessionStorage.setItem(SESSION_KEY, JSON.stringify(data.user));
     loginError.classList.add("d-none");
     window.location.href = "home.html";
   } catch (err) {
@@ -142,6 +143,7 @@ function setButtonLoading(button, isLoading, loadingText) {
 
 async function postJson(path, payload) {
   const response = await fetch(`${API_BASE_URL}${path}`, {
+    credentials: "include",
     method: "POST",
     headers: {
       "Content-Type": "application/json"
@@ -188,7 +190,6 @@ function openResetModal() {
   showResetStep("email");
   resetEmail = FIXED_PASSWORD_RESET_EMAIL;
   resetEmailInput.value = FIXED_PASSWORD_RESET_EMAIL;
-  resetToken = "";
   hideResetMessage(requestOtpMessage);
   hideResetMessage(verifyOtpMessage);
   hideResetMessage(resetPasswordMessage);
@@ -260,7 +261,6 @@ verifyOtpForm.addEventListener("submit", async function (e) {
       otp
     });
 
-    resetToken = data.resetToken;
     stopOtpTimer();
     hideResetMessage(verifyOtpMessage);
     showResetStep("password");
@@ -302,7 +302,6 @@ resetPasswordForm.addEventListener("submit", async function (e) {
   try {
     const data = await postJson("/api/auth/reset-password", {
       email: resetEmail,
-      resetToken,
       newPassword
     });
 

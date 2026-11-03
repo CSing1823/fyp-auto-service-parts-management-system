@@ -257,10 +257,10 @@ function setupVehicleBrandCombobox() {
 async function loadCustomersFromDB(search = "") {
   try {
     const url = search
-  ? `http://localhost:3000/api/customers?search=${encodeURIComponent(search)}&limit=100`
-  : `http://localhost:3000/api/customers?limit=100`;
+  ? `/api/customers?search=${encodeURIComponent(search)}&limit=100`
+  : `/api/customers?limit=100`;
 
-    const res = await fetch(url);
+    const res = await apiFetch(url);
     const data = await res.json();
 
     customers = data;
@@ -377,7 +377,7 @@ addCustomerForm.addEventListener("submit", async function (e) {
     // UPDATE
     let response;
     if (customerId) {
-      response = await fetch(`http://localhost:3000/api/customers/${customerId}`, {
+      response = await apiFetch(`/api/customers/${customerId}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(customerData)
@@ -385,7 +385,7 @@ addCustomerForm.addEventListener("submit", async function (e) {
     } 
     // CREATE
     else {
-      response = await fetch("http://localhost:3000/api/customers", {
+      response = await apiFetch("/api/customers", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(customerData)
@@ -442,7 +442,7 @@ confirmDeleteCustomerButton.addEventListener("click", async function () {
   confirmDeleteCustomerButton.innerHTML = '<span class="spinner-border spinner-border-sm me-2" aria-hidden="true"></span>Deleting...';
 
   try {
-    const response = await fetch(`http://localhost:3000/api/customers/${pendingDeleteCustomerId}`, {
+    const response = await apiFetch(`/api/customers/${pendingDeleteCustomerId}`, {
       method: "DELETE"
     });
     if (!response.ok) throw new Error("Unable to delete this customer. Please try again.");

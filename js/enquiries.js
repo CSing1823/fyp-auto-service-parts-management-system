@@ -14,7 +14,7 @@ if (menuToggle && sidebar && sidebarOverlay) {
   });
 }
 
-const API_BASE_URL = "http://localhost:3000/api/enquiries";
+const API_BASE_URL = "/api/enquiries";
 const STORAGE_KEY = "customerEnquiries";
 const statusOptions = ["Pending", "Checked, Not Told", "Checked, Told"];
 
@@ -210,7 +210,7 @@ function saveStoredEnquiries(records) {
 
 async function loadEnquiries() {
   try {
-    const res = await fetch(API_BASE_URL);
+    const res = await apiFetch(API_BASE_URL);
     if (!res.ok) throw new Error("Unable to load enquiries from API");
 
     const data = await res.json();
@@ -350,7 +350,7 @@ function getFormData() {
 async function persistEnquiry(enquiry, method, id = "") {
   try {
     const url = id ? `${API_BASE_URL}/${id}` : API_BASE_URL;
-    const res = await fetch(url, {
+    const res = await apiFetch(url, {
       method,
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(enquiry)
@@ -365,7 +365,7 @@ async function persistEnquiry(enquiry, method, id = "") {
 
 async function deleteEnquiryFromApi(id) {
   try {
-    const res = await fetch(`${API_BASE_URL}/${id}`, { method: "DELETE" });
+    const res = await apiFetch(`${API_BASE_URL}/${id}`, { method: "DELETE" });
     return res.ok;
   } catch (err) {
     return false;
