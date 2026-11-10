@@ -48,13 +48,31 @@ In Vercel Production and Preview, the server does not start a persistent reminde
 
 The request must include `Authorization: Bearer <CRON_SECRET>`. Keep `CRON_SECRET` only in server-side environment settings (including Vercel Production); never put it in frontend JavaScript. The endpoint returns processing counts plus `remainingCount` and `hasMore`; it processes no more than 25 reminders per call. It uses the same reminder processor as local scheduling and the protected staff processing action.
 
-Configure these server environment variables for Vercel Production:
+### Vercel Environment Variables
+
+Configure these server-side variables in Vercel. Never put secret values in frontend files or commit them to Git.
+
+**Production application and SMS scheduling:**
 
 - `MONGODB_URI`
 - `MOCEAN_API_TOKEN`
 - `MOCEAN_FROM`
 - `CRON_SECRET`
-- `SMS_REMINDER_CHECK_INTERVAL_MS` is used only by the local interval; the production scheduler controls its cadence.
+- `COOKIE_SECURE`
+- `NODE_ENV`
+
+`MONGODB_URI` connects the application to MongoDB Atlas. `MOCEAN_API_TOKEN` and `MOCEAN_FROM` enable SMS delivery through Mocean. `CRON_SECRET` authenticates the external scheduler's hourly request to `/api/cron/sms-reminders`. Set `COOKIE_SECURE` to `true` so session cookies are restricted to HTTPS, and set `NODE_ENV` to `production` for production behavior. Vercel Production and Preview do not start the persistent local reminder interval; `SMS_REMINDER_CHECK_INTERVAL_MS` is for local development only.
+
+**Password reset email:**
+
+- `SMTP_HOST`
+- `SMTP_PORT`
+- `SMTP_USER`
+- `SMTP_PASS`
+- `SMTP_FROM`
+- `PASSWORD_RESET_EMAIL`
+
+These variables configure the SMTP server credentials and sender used to deliver password reset OTP messages. `PASSWORD_RESET_EMAIL` sets the fixed recipient address for the password reset flow. Configure all six in Vercel if password reset email must work in the deployed environment.
 
 SMS states are stored on each service record. `Sent` means Mocean accepted the submission, not that the handset received it. Definite provider failures become `Failed` and can be retried manually by staff. Network timeouts or interrupted outcomes become `Unknown` and are not automatically retried, to avoid sending a possible duplicate. Review an Unknown attempt with the provider before taking any manual action.
 

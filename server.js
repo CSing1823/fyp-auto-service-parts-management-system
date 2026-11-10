@@ -675,10 +675,10 @@ function logSmsReminderSummary(result) {
 }
 
 // =====================
-// Test route
+// Send the site root to the public login-first entry page.
 // =====================
 app.get('/', (req, res) => {
-  res.send("Server is running");
+  res.redirect('/login.html');
 });
 
 // =====================
