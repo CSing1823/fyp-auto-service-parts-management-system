@@ -120,10 +120,28 @@ const isMigrationCommand = process.argv.includes("--run-migrations");
 const sessionCookieName = "fyp_staff_session";
 const resetCookieName = "fyp_password_reset";
 const sessionDurationMs = 8 * 60 * 60 * 1000;
-const allowedFrontendOrigins = new Set(
-  String(process.env.FRONTEND_ORIGINS || "http://127.0.0.1:5501,http://localhost:5501")
-    .split(",").map((origin) => origin.trim()).filter(Boolean)
-);
+function normalizeConfiguredOrigin(value) {
+  try {
+    const parsed = new URL(value.trim());
+    if (!/^https?:$/.test(parsed.protocol) || parsed.username || parsed.password ||
+        (parsed.pathname !== "/" && parsed.pathname !== "") || parsed.search || parsed.hash) {
+      return "";
+    }
+    return parsed.origin;
+  } catch {
+    return "";
+  }
+}
+
+const allowedFrontendOrigins = new Set([
+  "https://chai-huah-auto-service.vercel.app",
+  "http://127.0.0.1:5501",
+  "http://localhost:5501",
+  ...String(process.env.FRONTEND_ORIGINS || "")
+    .split(",")
+    .map(normalizeConfiguredOrigin)
+    .filter(Boolean)
+]);
 let localSmsReminderSchedulerStarted = false;
 let mongoReadyPromise = null;
 mongoose.connection.on("disconnected", () => {
@@ -534,7 +552,7 @@ async function sendPasswordResetOtp(email, otp) {
 // =====================
 app.use((req, res, next) => cors({
   origin(origin, callback) {
-    return callback(null, !origin || isAllowedRequestOrigin(req));
+    return callback(null, Boolean(origin) && isAllowedRequestOrigin(req));
   },
   credentials: true
 })(req, res, next));
@@ -564,10 +582,26 @@ function getSessionId(req) { return getCookie(req, sessionCookieName); }
 
 function isAllowedRequestOrigin(req) {
   const origin = req.get("origin");
-  if (!origin) return process.env.NODE_ENV !== "production";
-  if (allowedFrontendOrigins.has(origin)) return true;
-  const forwardedProto = String(req.get("x-forwarded-proto") || req.protocol).split(",")[0].trim();
-  return origin === `${forwardedProto}://${req.get("host")}`;
+  if (!origin) {
+    const isReadOnlyMethod = req.method === "GET" || req.method === "HEAD";
+    const fetchSite = req.get("sec-fetch-site");
+    const isSameOriginFetch = !fetchSite || fetchSite === "same-origin" || fetchSite === "none";
+    return isReadOnlyMethod && isSameOriginFetch;
+  }
+
+  let normalizedOrigin;
+  try {
+    const parsed = new URL(origin);
+    if (!/^https?:$/.test(parsed.protocol) || parsed.username || parsed.password ||
+        parsed.origin !== origin || parsed.pathname !== "/" || parsed.search || parsed.hash) {
+      return false;
+    }
+    normalizedOrigin = parsed.origin;
+  } catch {
+    return false;
+  }
+
+  return allowedFrontendOrigins.has(normalizedOrigin);
 }
 
 async function authenticateStaff(req, res, next) {

@@ -261,13 +261,27 @@ async function loadCustomersFromDB(search = "") {
   : `/api/customers?limit=100`;
 
     const res = await apiFetch(url);
-    const data = await res.json();
+    const data = await res.json().catch(() => null);
+    if (!res.ok) {
+      throw new Error(data?.message || `Unable to load customers (HTTP ${res.status}).`);
+    }
+    if (!Array.isArray(data)) {
+      throw new Error(data?.message || "The server returned an unexpected customer list response.");
+    }
 
     customers = data;
     renderCustomers(data);
 
   } catch (err) {
-    console.error(err);
+    const message = err.message || "Unable to load customer records. Please try again.";
+    console.error("Unable to load customers:", err);
+    customerTableBody.innerHTML = `
+      <tr>
+        <td colspan="6" role="alert" style="text-align:center; padding:20px; color:#b02a37;">
+          ${escapeHtml(message)}
+        </td>
+      </tr>
+    `;
   }
 }
 
