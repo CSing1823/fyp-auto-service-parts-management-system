@@ -35,6 +35,7 @@ const deleteUsageError = document.getElementById("deleteUsageError");
 const confirmDeleteUsageButton = document.getElementById("confirmDeleteUsage");
 const usageModalTitle = document.getElementById("usageModalTitle");
 const usageSubmitBtn = document.getElementById("usageSubmitBtn");
+let isUsageSubmitting = false;
 const addUsageBtn = document.querySelector(".add-btn");
 const filterButtons = document.querySelectorAll(".filter-btn");
 
@@ -309,6 +310,7 @@ deleteUsageModalElement.addEventListener("hidden.bs.modal", function () {
 
 usageForm.addEventListener("submit", async function (e) {
   e.preventDefault();
+  if (isUsageSubmitting) return;
 
   const formData = getFormData();
   const existingId = usageRecordIdInput.value;
@@ -318,23 +320,32 @@ usageForm.addEventListener("submit", async function (e) {
     return;
   }
 
-  if (existingId) {
-    const savedLog = await persistLog(formData, "PUT", existingId);
-    usageLogs = usageLogs.map((log) => {
-      if (log.id !== existingId) return log;
-      return savedLog || { ...formData, id: existingId };
-    });
-  } else {
-    const savedLog = await persistLog(formData, "POST");
-    usageLogs.unshift(savedLog || { ...formData, id: createLocalId() });
+  isUsageSubmitting = true;
+  usageSubmitBtn.disabled = true;
+  usageSubmitBtn.textContent = "Saving...";
+  try {
+    if (existingId) {
+      const savedLog = await persistLog(formData, "PUT", existingId);
+      usageLogs = usageLogs.map((log) => {
+        if (log.id !== existingId) return log;
+        return savedLog || { ...formData, id: existingId };
+      });
+    } else {
+      const savedLog = await persistLog(formData, "POST");
+      usageLogs.unshift(savedLog || { ...formData, id: createLocalId() });
+    }
+
+    saveStoredLogs(usageLogs);
+    renderUsageLogs();
+
+    const modal = bootstrap.Modal.getInstance(usageModalElement);
+    if (modal) modal.hide();
+    resetUsageForm();
+  } finally {
+    isUsageSubmitting = false;
+    usageSubmitBtn.disabled = false;
+    usageSubmitBtn.textContent = usageRecordIdInput.value ? "Update Usage" : "Record Usage";
   }
-
-  saveStoredLogs(usageLogs);
-  renderUsageLogs();
-
-  const modal = bootstrap.Modal.getInstance(usageModalElement);
-  if (modal) modal.hide();
-  resetUsageForm();
 });
 
 function bindActionButtons() {

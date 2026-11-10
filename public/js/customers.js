@@ -30,6 +30,7 @@ const carPlateNumberInput = document.getElementById("carPlateNumber");
 const editCustomerIdInput = document.getElementById("editRowIndex");
 const customerModalTitle = document.getElementById("customerModalTitle");
 const customerSubmitBtn = document.getElementById("customerSubmitBtn");
+let isCustomerSubmitting = false;
 const addCustomerModalElement = document.getElementById("addCustomerModal");
 const addCustomerBtn = document.querySelector(".add-btn");
 const customerFormError = document.getElementById("customerFormError");
@@ -367,6 +368,7 @@ if (addCustomerModalElement) {
 ====================== */
 addCustomerForm.addEventListener("submit", async function (e) {
   e.preventDefault();
+  if (isCustomerSubmitting) return;
 
   customerFormError.textContent = "";
   customerFormError.classList.add("d-none");
@@ -386,6 +388,10 @@ addCustomerForm.addEventListener("submit", async function (e) {
   }
 
   const customerData = { customerName, phoneNumber, vehicleBrand, vehicleModel, carPlateNumber };
+
+  isCustomerSubmitting = true;
+  customerSubmitBtn.disabled = true;
+  customerSubmitBtn.textContent = "Saving...";
 
   try {
     // UPDATE
@@ -422,6 +428,10 @@ addCustomerForm.addEventListener("submit", async function (e) {
     console.error(err);
     customerFormError.textContent = err.message || "Error saving customer details.";
     customerFormError.classList.remove("d-none");
+  } finally {
+    isCustomerSubmitting = false;
+    customerSubmitBtn.disabled = false;
+    customerSubmitBtn.textContent = editCustomerIdInput.value ? "Update Customer" : "Add Customer";
   }
 });
 

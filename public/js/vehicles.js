@@ -29,6 +29,7 @@ const trackedVehiclesCount = document.getElementById("trackedVehiclesCount");
 const dueVehiclesCount = document.getElementById("dueVehiclesCount");
 const serviceModalTitle = document.getElementById("serviceModalTitle");
 const serviceSubmitBtn = document.getElementById("serviceSubmitBtn");
+let isServiceRecordSubmitting = false;
 const historyVehicleTitle = document.getElementById("historyVehicleTitle");
 const historyVehicleSubtitle = document.getElementById("historyVehicleSubtitle");
 const historySummaryGrid = document.getElementById("historySummaryGrid");
@@ -657,6 +658,7 @@ deleteServiceRecordModalElement.addEventListener("hidden.bs.modal", function () 
 
 serviceRecordForm.addEventListener("submit", async function (e) {
   e.preventDefault();
+  if (isServiceRecordSubmitting) return;
 
   const record = buildServiceRecordFromForm();
 
@@ -674,22 +676,31 @@ serviceRecordForm.addEventListener("submit", async function (e) {
     return;
   }
 
-  if (serviceRecordIdInput.value) {
-    const savedRecord = await persistOilServiceRecord(record, "PUT", serviceRecordIdInput.value);
-    oilServiceRecords = oilServiceRecords.map((item) =>
-      item.id === serviceRecordIdInput.value ? (savedRecord || record) : item
-    );
-  } else {
-    const savedRecord = await persistOilServiceRecord(record, "POST");
-    oilServiceRecords.unshift(savedRecord || record);
+  isServiceRecordSubmitting = true;
+  serviceSubmitBtn.disabled = true;
+  serviceSubmitBtn.textContent = "Saving...";
+  try {
+    if (serviceRecordIdInput.value) {
+      const savedRecord = await persistOilServiceRecord(record, "PUT", serviceRecordIdInput.value);
+      oilServiceRecords = oilServiceRecords.map((item) =>
+        item.id === serviceRecordIdInput.value ? (savedRecord || record) : item
+      );
+    } else {
+      const savedRecord = await persistOilServiceRecord(record, "POST");
+      oilServiceRecords.unshift(savedRecord || record);
+    }
+
+    saveOilServiceRecordsToStorage(oilServiceRecords);
+    renderVehicleCards();
+
+    const modal = bootstrap.Modal.getInstance(serviceRecordModalElement);
+    if (modal) modal.hide();
+    resetServiceRecordForm();
+  } finally {
+    isServiceRecordSubmitting = false;
+    serviceSubmitBtn.disabled = false;
+    serviceSubmitBtn.textContent = serviceRecordIdInput.value ? "Update Service Record" : "Add Service Record";
   }
-
-  saveOilServiceRecordsToStorage(oilServiceRecords);
-  renderVehicleCards();
-
-  const modal = bootstrap.Modal.getInstance(serviceRecordModalElement);
-  if (modal) modal.hide();
-  resetServiceRecordForm();
 });
 
 if (vehicleSearchInput) {

@@ -32,6 +32,7 @@ const deleteEnquiryError = document.getElementById("deleteEnquiryError");
 const confirmDeleteEnquiryButton = document.getElementById("confirmDeleteEnquiry");
 const enquiryModalTitle = document.getElementById("enquiryModalTitle");
 const enquirySubmitBtn = document.getElementById("enquirySubmitBtn");
+let isEnquirySubmitting = false;
 const addEnquiryBtn = document.querySelector(".add-btn");
 const filterButtons = document.querySelectorAll(".filter-btn");
 
@@ -404,6 +405,7 @@ deleteEnquiryModalElement.addEventListener("hidden.bs.modal", function () {
 
 enquiryForm.addEventListener("submit", async function (e) {
   e.preventDefault();
+  if (isEnquirySubmitting) return;
 
   const formData = getFormData();
   const existingId = enquiryRecordIdInput.value;
@@ -414,23 +416,32 @@ enquiryForm.addEventListener("submit", async function (e) {
     return;
   }
 
-  if (existingId) {
-    const savedEnquiry = await persistEnquiry(formData, "PUT", existingId);
-    enquiries = enquiries.map((enquiry) => {
-      if (enquiry.id !== existingId) return enquiry;
-      return savedEnquiry || { ...formData, id: existingId };
-    });
-  } else {
-    const savedEnquiry = await persistEnquiry(formData, "POST");
-    enquiries.unshift(savedEnquiry || { ...formData, id: createLocalId() });
+  isEnquirySubmitting = true;
+  enquirySubmitBtn.disabled = true;
+  enquirySubmitBtn.textContent = "Saving...";
+  try {
+    if (existingId) {
+      const savedEnquiry = await persistEnquiry(formData, "PUT", existingId);
+      enquiries = enquiries.map((enquiry) => {
+        if (enquiry.id !== existingId) return enquiry;
+        return savedEnquiry || { ...formData, id: existingId };
+      });
+    } else {
+      const savedEnquiry = await persistEnquiry(formData, "POST");
+      enquiries.unshift(savedEnquiry || { ...formData, id: createLocalId() });
+    }
+
+    saveStoredEnquiries(enquiries);
+    renderEnquiries();
+
+    const modal = bootstrap.Modal.getInstance(enquiryModalElement);
+    if (modal) modal.hide();
+    resetEnquiryForm();
+  } finally {
+    isEnquirySubmitting = false;
+    enquirySubmitBtn.disabled = false;
+    enquirySubmitBtn.textContent = enquiryRecordIdInput.value ? "Update Enquiry" : "Add Enquiry";
   }
-
-  saveStoredEnquiries(enquiries);
-  renderEnquiries();
-
-  const modal = bootstrap.Modal.getInstance(enquiryModalElement);
-  if (modal) modal.hide();
-  resetEnquiryForm();
 });
 
 function bindActionButtons() {
