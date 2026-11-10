@@ -137,6 +137,42 @@ function constantTimeSecretMatches(providedSecret, configuredSecret) {
   return provided.length === configured.length && crypto.timingSafeEqual(provided, configured);
 }
 
+function sanitizeMongoErrorMessage(error) {
+  const message = error && typeof error.message === "string"
+    ? error.message
+    : "MongoDB operation failed without a message.";
+
+  return message
+    .replace(/\b[a-z][a-z0-9+.-]*:\/\/[^\s"'<>]+/gi, "[REDACTED_URI]")
+    .replace(/\b(authorization|username|user|password|passwd|pwd|token|secret|api[_-]?key)\b(\s*[:=]\s*)(?:"[^"]*"|'[^']*'|[^\s,;]+)/gi, "$1$2[REDACTED]")
+    .replace(/\bBearer\s+[A-Za-z0-9._~+\/-]+=*/gi, "Bearer [REDACTED]")
+    .replace(/\beyJ[A-Za-z0-9_-]{5,}\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\b/g, "[REDACTED_TOKEN]")
+    .slice(0, 500);
+}
+
+function safeMongoDiagnosticValue(value) {
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  if (typeof value === "string" && /^[A-Za-z0-9_-]{1,80}$/.test(value)) return value;
+  return undefined;
+}
+
+function getSafeMongoErrorDiagnostics(error) {
+  const details = {
+    name: safeMongoDiagnosticValue(error?.name),
+    code: safeMongoDiagnosticValue(error?.code),
+    codeName: safeMongoDiagnosticValue(error?.codeName),
+    labels: Array.isArray(error?.errorLabels)
+      ? error.errorLabels
+        .map(safeMongoDiagnosticValue)
+        .filter((label) => label !== undefined)
+        .slice(0, 10)
+      : [],
+    message: sanitizeMongoErrorMessage(error)
+  };
+
+  return Object.fromEntries(Object.entries(details).filter(([, value]) => value !== undefined));
+}
+
 function normalizeEmail(email) {
   return String(email || "").trim().toLowerCase();
 }
@@ -582,7 +618,7 @@ async function ensureMongoReady(req, res, next) {
     startLocalSmsReminderScheduler();
     return next();
   } catch (err) {
-    console.error("MongoDB is unavailable for an API request.");
+    console.error("MongoDB API readiness failure.", getSafeMongoErrorDiagnostics(err));
     return res.status(503).json({ message: "The database is temporarily unavailable." });
   }
 }
@@ -599,17 +635,31 @@ async function ensureMongoConnection() {
   }
   if (!mongoUri) {
     mongoReadyPromise = null;
-    throw new Error("MongoDB is not configured.");
+    const error = new Error("MongoDB is not configured.");
+    console.error("MongoDB connection failure.", getSafeMongoErrorDiagnostics(error));
+    throw error;
   }
 
+  console.info("MongoDB connection attempt started.", { readyState });
   const connectionPromise = readyState === 2
     ? mongoose.connection.asPromise()
     : (readyState === 1 ? Promise.resolve(mongoose.connection) : mongoose.connect(mongoUri));
-  const readinessPromise = connectionPromise.then(async () => {
-    await mongoose.connection.collection("staffSessions").createIndex(
-      { expiresAt: 1 },
-      { expireAfterSeconds: 0, name: "staff_sessions_expiry" }
-    );
+  const readinessPromise = connectionPromise.catch((err) => {
+    console.error("MongoDB connection failure.", getSafeMongoErrorDiagnostics(err));
+    throw err;
+  }).then(async () => {
+    console.info("MongoDB connection successfully established.", { readyState: mongoose.connection.readyState });
+    console.info("MongoDB TTL index creation started.", { indexName: "staff_sessions_expiry" });
+    try {
+      await mongoose.connection.collection("staffSessions").createIndex(
+        { expiresAt: 1 },
+        { expireAfterSeconds: 0, name: "staff_sessions_expiry" }
+      );
+    } catch (err) {
+      console.error("MongoDB TTL index creation failure.", getSafeMongoErrorDiagnostics(err));
+      throw err;
+    }
+    console.info("MongoDB TTL index creation successfully completed.", { indexName: "staff_sessions_expiry" });
     return mongoose.connection;
   }).catch((err) => {
     if (mongoReadyPromise === readinessPromise) mongoReadyPromise = null;
@@ -649,7 +699,10 @@ if (isMigrationCommand) {
       console.log("MongoDB ready");
       startLocalSmsReminderScheduler();
     })
-    .catch(() => console.error("Initial MongoDB connection failed; API requests will return 503 until the database is ready."));
+    .catch((err) => console.error(
+      "Initial MongoDB readiness failure; API requests will return 503 until the database is ready.",
+      getSafeMongoErrorDiagnostics(err)
+    ));
 }
 
 function startLocalSmsReminderScheduler() {
